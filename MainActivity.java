@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
     private TextWatcher jsonTextWatcher;
 
     private SharedPreferences webUrlPrefs;
-    private String savedWebBaseUrl = "https://dtxiaweibing.github.io/TIMU/";
+    private String savedWebBaseUrl = ""; // 默认无网址
 
     private Handler autoHideHandler = new Handler();
     private Runnable autoHideRunnable = new Runnable() {
@@ -131,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadSavedWebUrl() {
-        savedWebBaseUrl = webUrlPrefs.getString(KEY_WEB_BASE_URL, savedWebBaseUrl);
+        savedWebBaseUrl = webUrlPrefs.getString(KEY_WEB_BASE_URL, ""); // 若无则返回空字符串
     }
 
     private void saveWebUrl(String webUrl) {
@@ -416,6 +416,16 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onClick(View v) {
                     hideFloatingButtons();
+                }
+            });
+
+        // GitHub 地址输入框失去焦点时保存
+        etGithubUrl.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                @Override
+                public void onFocusChange(View v, boolean hasFocus) {
+                    if (!hasFocus) {
+                        saveData();
+                    }
                 }
             });
     }
@@ -752,8 +762,8 @@ public class MainActivity extends AppCompatActivity {
         layout.setPadding(50, 30, 50, 30);
 
         final EditText input = new EditText(this);
-        input.setHint("例如: https://dtxiaweibing.github.io/TIMU/");
-        input.setText(savedWebBaseUrl);
+        input.setHint("例如: https://example.com/path/");
+        input.setText(savedWebBaseUrl); // 已保存的网址，若无则为空
         input.setSelectAllOnFocus(true);
         layout.addView(input);
 
@@ -1125,6 +1135,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        saveData(); // 确保数据保存
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK || data == null) return;
@@ -1150,6 +1166,7 @@ public class MainActivity extends AppCompatActivity {
                     br.close();
                     token = sb.toString();
                     tvTokenStatus.setText("Token已读");
+                    saveData(); // 立即保存 Token
                     Toast.makeText(this, "Token 读取成功", Toast.LENGTH_SHORT).show();
                 } catch (IOException e) {
                     Toast.makeText(this, "Token读取失败", Toast.LENGTH_SHORT).show();
