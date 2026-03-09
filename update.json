@@ -6,12 +6,12 @@
         "size": 3448697,
         "md5": "B5ACAD8B4645D60B051A9D81A7FFC615",
         "sha256": "709C71E78D9F85D9AEABCBB507A2B2BDCC0DD6E0C5E79F3A16AA08B7E0CDBD8F",
-        "download_url": "https://github.com/DTxiaweibing/this-project-is-dead/%E5%85%BB%E8%99%BE%E5%8A%A9%E6%89%8B1.01.apk",
+        "download_url": "https://raw.githubusercontent.com/DTxiaweibing/this-project-is-dead/main/JsonGenerator.apk",
         "github_repo": "https://github.com/DTxiaweibing/this-project-is-dead\n\n"
     },
     "update_log": "无更新说明",
     "metadata": {
-        "generated_at": "2026-03-10T00:40:43+08:00",
+        "generated_at": "2026-03-10T00:46:50+08:00",
         "generator_version": "1.0.0"
     }
 }
