@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="8dp">
+
+    <!-- 标题 -->
+    <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="JSON生成器(GitHub版)"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="8dp"
+        android:layout_alignParentTop="true"/>
+
+    <!-- 主容器：包含操作区、选项卡、显示区 -->
+    <LinearLayout
+        android:id="@+id/main_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:layout_below="@id/tv_title"
+        android:layout_above="@+id/bottom_buttons_container">
+
+        <!-- 操作区域 -->
+        <LinearLayout
+            android:id="@+id/operation_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#f0f0f0"
+            android:padding="4dp">
+
+            <!-- 基准文件行 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+
+                <Button
+                    android:id="@+id/btn_browse_file"
+                    android:layout_width="0dp"
+                    android:layout_height="35dp"
+                    android:layout_weight="1.5"
+                    android:text="基准文件"
+                    android:textSize="13sp"
+                    android:padding="0dp"
+                    android:singleLine="true"
+                    android:background="@drawable/button_gray_border"/>
+
+                <TextView
+                    android:id="@+id/tv_file_name"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="3.5"
+                    android:gravity="center_vertical|left"
+                    android:textSize="13sp"
+                    android:paddingLeft="4dp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:text="未选择"/>
+            </LinearLayout>
+
+            <!-- 灰色分割线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#cccccc"
+                android:layout_marginBottom="2dp"/>
+
+            <!-- Token文件行 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+
+                <Button
+                    android:id="@+id/btn_browse_token"
+                    android:layout_width="0dp"
+                    android:layout_height="35dp"
+                    android:layout_weight="1.5"
+                    android:text="Token"
+                    android:textSize="13sp"
+                    android:padding="0dp"
+                    android:singleLine="true"
+                    android:background="@drawable/button_gray_border"/>
+
+                <TextView
+                    android:id="@+id/tv_token_status"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="3.5"
+                    android:gravity="center_vertical|left"
+                    android:textSize="13sp"
+                    android:paddingLeft="4dp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:text="未读取"/>
+            </LinearLayout>
+
+            <!-- 灰色分割线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#cccccc"
+                android:layout_marginBottom="2dp"/>
+
+            <!-- GitHub地址 + 查询按钮 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+
+                <EditText
+                    android:id="@+id/et_github_url"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="3"
+                    android:hint="GitHub仓库地址"
+                    android:textSize="13sp"
+                    android:paddingLeft="4dp"
+                    android:singleLine="true"
+                    android:background="#f0f0f0"/>
+
+                <Button
+                    android:id="@+id/btn_query"
+                    android:layout_width="0dp"
+                    android:layout_height="35dp"
+                    android:layout_weight="1"
+                    android:text="查询"
+                    android:textSize="13sp"
+                    android:padding="0dp"
+                    android:singleLine="true"
+                    android:layout_marginLeft="2dp"
+                    android:background="@drawable/button_gray_border"/>
+            </LinearLayout>
+
+            <!-- 橘黄色分隔线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:background="#FFA500"
+                android:layout_marginBottom="0dp"/>
+        </LinearLayout>
+
+        <!-- 三个选项卡按钮容器 -->
+        <LinearLayout
+            android:id="@+id/tab_buttons_container"
+            android:layout_width="match_parent"
+            android:layout_height="35dp"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp"
+            android:background="#e0e0e0">
+
+            <Button
+                android:id="@+id/btn_tab_repo"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="仓库文件"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"         
+                android:singleLine="true"/>
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:background="#e0e0e0"/>
+
+            <Button
+                android:id="@+id/btn_tab_json"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="update.json"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"
+                android:singleLine="true"/>
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:background="#e0e0e0"/>
+
+            <Button
+                android:id="@+id/btn_tab_update"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="更新内容"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"
+                android:singleLine="true"/>
+        </LinearLayout>
+
+        <!-- 内容区域（选项卡切换区） -->
+        <FrameLayout
+            android:id="@+id/content_frame"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="4dp"
+            android:background="#f5f5f5"
+            android:padding="2dp">
+
+            <ListView
+                android:id="@+id/lv_github_files"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"/>
+
+            <ScrollView
+                android:id="@+id/scroll_json"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"
+                android:background="#ffffff"
+                android:padding="4dp">
+
+                <EditText
+                    android:id="@+id/et_json_preview"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="14sp"
+                    android:textColor="#008800"
+                    android:typeface="monospace"
+                    android:background="@null"
+                    android:padding="4dp"
+                    android:gravity="top"
+                    android:inputType="textMultiLine"
+                    android:minLines="10"/>
+            </ScrollView>
+
+            <ScrollView
+                android:id="@+id/scroll_update"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"
+                android:background="#ffffff"
+                android:padding="2dp">
+
+                <LinearLayout
+                    android:id="@+id/ll_update_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"/>
+            </ScrollView>
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <!-- 悬浮按钮覆盖层 -->
+    <LinearLayout
+        android:id="@+id/floating_button_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@android:color/transparent"
+        android:layout_above="@+id/bottom_buttons_container"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone">
+
+        <!-- 生成按钮上方的两个按钮（上下排列） -->
+        <LinearLayout
+            android:id="@+id/floating_generate_buttons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btn_floating_github_link"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="GitHub链接"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"
+                android:minHeight="0dp"
+                android:includeFontPadding="false"
+                android:stateListAnimator="@null"
+                android:elevation="0dp"
+                android:singleLine="true"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:background="@android:color/transparent"/>
+
+            <Button
+                android:id="@+id/btn_floating_web_link"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="网页版链接"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"
+                android:minHeight="0dp"
+                android:includeFontPadding="false"
+                android:stateListAnimator="@null"
+                android:elevation="0dp"
+                android:singleLine="true"/>
+        </LinearLayout>
+
+        <!-- 上传GitHub按钮上方的两个按钮（上下排列） -->
+        <LinearLayout
+            android:id="@+id/floating_upload_buttons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btn_floating_upload_file"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="上传文件"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"   
+                android:minHeight="0dp"
+                android:includeFontPadding="false"
+                android:stateListAnimator="@null"
+                android:elevation="0dp"
+                android:singleLine="true"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:background="@android:color/transparent"/>
+
+            <Button
+                android:id="@+id/btn_floating_upload_folder"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="上传文件夹"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"
+                android:minHeight="0dp"
+                android:includeFontPadding="false"
+                android:stateListAnimator="@null"
+                android:elevation="0dp"
+                android:singleLine="true"/>
+        </LinearLayout>
+
+        <!-- 保存按钮上方的两个按钮（上下排列） -->
+        <LinearLayout
+            android:id="@+id/floating_save_buttons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btn_floating_update_existing"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="更新已有文件"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"
+                android:minHeight="0dp"
+                android:includeFontPadding="false"
+                android:stateListAnimator="@null"
+                android:elevation="0dp"
+                android:singleLine="true"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:background="@android:color/transparent"/>
+
+            <Button
+                android:id="@+id/btn_floating_new_file"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="新建文件"
+                android:textSize="13sp"
+                android:background="@drawable/tab_selector"
+                android:textColor="@color/tab_text_selector"
+                android:padding="0dp"
+                android:minHeight="0dp"
+                android:includeFontPadding="false"
+                android:stateListAnimator="@null"
+                android:elevation="0dp"
+                android:singleLine="true"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 底部按钮 -->
+    <LinearLayout
+        android:id="@+id/bottom_buttons_container"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:layout_marginTop="0dp"
+        android:background="@android:color/transparent"
+        android:padding="0dp"
+        android:layout_alignParentBottom="true">
+
+        <Button
+            android:id="@+id/btn_generate"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="生成"
+            android:textSize="13sp"
+            android:background="@drawable/tab_selector"
+            android:textColor="@color/tab_text_selector"
+            android:padding="0dp"
+            android:minHeight="0dp"
+            android:includeFontPadding="false"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:singleLine="true" />
+
+        <View
+            android:layout_width="2dp"
+            android:layout_height="match_parent"
+            android:background="#e0e0e0" />
+
+        <Button
+            android:id="@+id/btn_upload"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="上传GitHub"
+            android:textSize="13sp"
+            android:background="@drawable/tab_selector"
+            android:textColor="@color/tab_text_selector"
+            android:padding="0dp"
+            android:minHeight="0dp"
+            android:includeFontPadding="false"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:singleLine="true" />
+
+        <View
+            android:layout_width="2dp"
+            android:layout_height="match_parent"
+            android:background="#e0e0e0" />
+
+        <Button
+            android:id="@+id/btn_save"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="保存"
+            android:textSize="13sp"
+            android:background="@drawable/tab_selector"
+            android:textColor="@color/tab_text_selector"
+            android:padding="0dp"
+            android:minHeight="0dp"
+            android:includeFontPadding="false"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:singleLine="true" />
+    </LinearLayout>
+          </RelativeLayout>
