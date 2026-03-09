@@ -365,7 +365,11 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btn_floating_upload_file).setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    hideFloatingButtons();
+                    hideFloatingButtons(); // 先隐藏悬浮按钮
+                    // 验证 Token 和 GitHub 网址
+                    if (!checkTokenAndUrl()) {
+                        return; // 验证失败，直接返回，不打开文件选择器
+                    }
                     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                     intent.setType("*/*");
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -377,6 +381,9 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onClick(View v) {
                     hideFloatingButtons();
+                    if (!checkTokenAndUrl()) {
+                        return;
+                    }
                     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                     startActivityForResult(intent, REQUEST_UPLOAD_FOLDER);
                 }
@@ -414,11 +421,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void showFloatingButtons(String type) {
         hideFloatingButtons();
-        
+
         floatingGenerateButtons.setVisibility(View.GONE);
         floatingUploadButtons.setVisibility(View.GONE);
         floatingSaveButtons.setVisibility(View.GONE);
-        
+
         if ("generate".equals(type)) {
             floatingGenerateButtons.setVisibility(View.VISIBLE);
         } else if ("upload".equals(type)) {
@@ -426,7 +433,7 @@ public class MainActivity extends AppCompatActivity {
         } else if ("save".equals(type)) {
             floatingSaveButtons.setVisibility(View.VISIBLE);
         }
-        
+
         floatingButtonLayout.setVisibility(View.VISIBLE);
         autoHideHandler.removeCallbacks(autoHideRunnable);
         autoHideHandler.postDelayed(autoHideRunnable, 3000);
@@ -862,21 +869,37 @@ public class MainActivity extends AppCompatActivity {
         saveJsonToUri(uri, false);
     }
 
-    private void uploadGeneratedJson() {
-        if (token == null || token.isEmpty()) {
+    // ================== 新增：统一验证Token和GitHub网址 ==================
+    private boolean checkTokenAndUrl() {
+        boolean tokenMissing = (token == null || token.isEmpty());
+        String githubUrl = etGithubUrl.getText().toString().trim();
+        boolean urlMissing = githubUrl.isEmpty();
+
+        if (tokenMissing && urlMissing) {
+            Toast.makeText(this, "请先选择Token文件并填写GitHub仓库地址", Toast.LENGTH_SHORT).show();
+            return false;
+        } else if (tokenMissing) {
             Toast.makeText(this, "请先选择Token文件", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        final String githubUrl = etGithubUrl.getText().toString().trim();
-        if (githubUrl.isEmpty()) {
+            return false;
+        } else if (urlMissing) {
             Toast.makeText(this, "请输入GitHub仓库地址", Toast.LENGTH_SHORT).show();
-            return;
+            return false;
         }
-        final String[] parts = githubUrl.split("/");
+
+        String[] parts = githubUrl.split("/");
         if (parts.length < 5) {
             Toast.makeText(this, "GitHub地址格式错误", Toast.LENGTH_SHORT).show();
-            return;
+            return false;
         }
+        return true;
+    }
+    // ==================================================================
+
+    private void uploadGeneratedJson() {
+        if (!checkTokenAndUrl()) return;  // 调用统一验证
+
+        String githubUrl = etGithubUrl.getText().toString().trim();
+        String[] parts = githubUrl.split("/");
         final String owner = parts[3];
         final String repo = parts[4];
         final String filePath = "update.json";
@@ -943,20 +966,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performFileUpload(final Uri fileUri) {
-        if (token == null || token.isEmpty()) {
-            Toast.makeText(this, "请先选择Token文件", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        final String githubUrl = etGithubUrl.getText().toString().trim();
-        if (githubUrl.isEmpty()) {
-            Toast.makeText(this, "请输入GitHub仓库地址", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        final String[] parts = githubUrl.split("/");
-        if (parts.length < 5) {
-            Toast.makeText(this, "GitHub地址格式错误", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (!checkTokenAndUrl()) return;  // 调用统一验证
+
+        String githubUrl = etGithubUrl.getText().toString().trim();
+        String[] parts = githubUrl.split("/");
         final String owner = parts[3];
         final String repo = parts[4];
         final String fileName = FileHelper.getFileNameFromUri(getContentResolver(), fileUri);
@@ -1032,20 +1045,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performFolderUpload(final Uri folderUri) {
-        if (token == null || token.isEmpty()) {
-            Toast.makeText(this, "请先选择Token文件", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        final String githubUrl = etGithubUrl.getText().toString().trim();
-        if (githubUrl.isEmpty()) {
-            Toast.makeText(this, "请输入GitHub仓库地址", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        final String[] parts = githubUrl.split("/");
-        if (parts.length < 5) {
-            Toast.makeText(this, "GitHub地址格式错误", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (!checkTokenAndUrl()) return;  // 调用统一验证
+
+        String githubUrl = etGithubUrl.getText().toString().trim();
+        String[] parts = githubUrl.split("/");
         final String owner = parts[3];
         final String repo = parts[4];
 
