@@ -365,14 +365,15 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btn_floating_upload_file).setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    hideFloatingButtons(); // 先隐藏悬浮按钮
-                    // 验证 Token 和 GitHub 网址
+                    hideFloatingButtons();
+                    // 先验证 Token 和网址
                     if (!checkTokenAndUrl()) {
-                        return; // 验证失败，直接返回，不打开文件选择器
+                        return;
                     }
                     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                     intent.setType("*/*");
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true); // 启用多选
                     startActivityForResult(intent, REQUEST_UPLOAD_FILE);
                 }
             });
@@ -869,7 +870,7 @@ public class MainActivity extends AppCompatActivity {
         saveJsonToUri(uri, false);
     }
 
-    // ================== 新增：统一验证Token和GitHub网址 ==================
+    // ================== 统一验证Token和GitHub网址 ==================
     private boolean checkTokenAndUrl() {
         boolean tokenMissing = (token == null || token.isEmpty());
         String githubUrl = etGithubUrl.getText().toString().trim();
@@ -896,7 +897,7 @@ public class MainActivity extends AppCompatActivity {
     // ==================================================================
 
     private void uploadGeneratedJson() {
-        if (!checkTokenAndUrl()) return;  // 调用统一验证
+        if (!checkTokenAndUrl()) return;
 
         String githubUrl = etGithubUrl.getText().toString().trim();
         String[] parts = githubUrl.split("/");
@@ -966,7 +967,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performFileUpload(final Uri fileUri) {
-        if (!checkTokenAndUrl()) return;  // 调用统一验证
+        if (!checkTokenAndUrl()) return;
 
         String githubUrl = etGithubUrl.getText().toString().trim();
         String[] parts = githubUrl.split("/");
@@ -1045,7 +1046,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performFolderUpload(final Uri folderUri) {
-        if (!checkTokenAndUrl()) return;  // 调用统一验证
+        if (!checkTokenAndUrl()) return;
 
         String githubUrl = etGithubUrl.getText().toString().trim();
         String[] parts = githubUrl.split("/");
@@ -1159,7 +1160,18 @@ public class MainActivity extends AppCompatActivity {
                 checkAndSaveJson(uri);
                 break;
             case REQUEST_UPLOAD_FILE:
-                performFileUpload(uri);
+                // 处理多选文件
+                if (data.getClipData() != null) {
+                    int count = data.getClipData().getItemCount();
+                    for (int i = 0; i < count; i++) {
+                        Uri fileUri = data.getClipData().getItemAt(i).getUri();
+                        performFileUpload(fileUri);
+                    }
+                    Toast.makeText(this, "开始上传 " + count + " 个文件", Toast.LENGTH_SHORT).show();
+                } else {
+                    // 单选
+                    performFileUpload(uri);
+                }
                 break;
             case REQUEST_UPLOAD_FOLDER:
                 performFolderUpload(uri);
