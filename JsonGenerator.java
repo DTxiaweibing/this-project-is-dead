@@ -13,17 +13,17 @@ import java.util.Locale;
 public class JsonGenerator {
     private static final String TAG = "JsonGenerator";
 
-    // 使用 GitHubFile 对象（保留兼容）
+    // 使用 GitHubFile 对象（增加 generatorVersion 参数）
     public static String generateJson(GitHubFile selectedFile, String fileName, long fileSize,
                                       String md5, String sha256, String apkVersion,
-                                      String updateLog, String githubRepo) {
-        return generateJson(selectedFile.getDownloadUrl(), fileName, fileSize, md5, sha256, apkVersion, updateLog, githubRepo);
+                                      String updateLog, String githubRepo, String generatorVersion) {
+        return generateJson(selectedFile.getDownloadUrl(), fileName, fileSize, md5, sha256, apkVersion, updateLog, githubRepo, generatorVersion);
     }
 
-    // 直接传入 downloadUrl（核心方法）
+    // 核心方法（增加 generatorVersion 参数）
     public static String generateJson(String downloadUrl, String fileName, long fileSize,
                                       String md5, String sha256, String apkVersion,
-                                      String updateLog, String githubRepo) {
+                                      String updateLog, String githubRepo, String generatorVersion) {
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.CHINA);
             String timeWithoutZone = sdf.format(new Date());
@@ -38,15 +38,15 @@ public class JsonGenerator {
             fileInfo.put("size", fileSize);
             fileInfo.put("md5", md5);
             fileInfo.put("sha256", sha256);
-            fileInfo.put("download_url", downloadUrl);  // 唯一下载链接
+            fileInfo.put("download_url", downloadUrl);
             fileInfo.put("github_repo", githubRepo);
             root.put("file_info", fileInfo);
 
             root.put("update_log", updateLog);
 
             JSONObject metadata = new JSONObject();
-            metadata.put("generated_at", time);
-            metadata.put("generator_version", "1.0.0");
+            metadata.put("生成时间", time);
+            metadata.put("JSON文件生成器版本", generatorVersion);  // 从参数传入真实版本号
             root.put("metadata", metadata);
 
             return root.toString(4).replace("\\/", "/");
