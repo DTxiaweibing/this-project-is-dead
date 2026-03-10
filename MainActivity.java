@@ -107,6 +107,9 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    // 新增：应用自身版本号
+    private String appVersion;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -124,6 +127,20 @@ public class MainActivity extends AppCompatActivity {
         setListener();
         restoreData();
         selectTab(btnTabRepo);
+
+        // 获取应用版本号
+        appVersion = getAppVersion();
+    }
+
+    // 新增：获取应用版本号的方法
+    private String getAppVersion() {
+        try {
+            PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return pInfo.versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+            return "1.0.0"; // 默认值
+        }
     }
 
     private void initSharedPreferences() {
@@ -535,7 +552,8 @@ public class MainActivity extends AppCompatActivity {
                     finalSha256,
                     finalApkVersion,
                     finalUpdateLog,
-                    finalGithubUrl
+                    finalGithubUrl,
+                    appVersion  // 传入应用版本号
                 );
 
                 etJsonPreview.removeTextChangedListener(jsonTextWatcher);
@@ -579,7 +597,8 @@ public class MainActivity extends AppCompatActivity {
                                     finalSha256,
                                     finalApkVersion,
                                     finalUpdateLog,
-                                    finalGithubUrl
+                                    finalGithubUrl,
+                                    appVersion  // 传入应用版本号
                                 );
 
                                 etJsonPreview.removeTextChangedListener(jsonTextWatcher);
@@ -791,7 +810,8 @@ public class MainActivity extends AppCompatActivity {
                         sha256,
                         apkVersion,
                         updateLog,
-                        githubUrl
+                        githubUrl,
+                        appVersion  // 传入应用版本号
                     );
 
                     etJsonPreview.removeTextChangedListener(jsonTextWatcher);
