@@ -1,0 +1,36 @@
+apply plugin: 'com.android.application'
+
+android {
+    signingConfigs {
+        debug {
+            storeFile file('D:\\应用软件\\安卓应用\\debug.keystore')
+            storePassword 'xvb838989'
+            keyAlias 'debugkey'
+            keyPassword 'xvb838989'
+        }
+    }
+    namespace 'com.example.jsongenerator'
+    compileSdk 36
+    buildToolsVersion "36.1.0"
+
+    defaultConfig {
+        applicationId "com.example.jsongenerator"
+        minSdk 21
+        targetSdk 36
+        versionCode 3
+        versionName "1.02"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.squareup.okhttp3:okhttp:5.4.0'
+}
