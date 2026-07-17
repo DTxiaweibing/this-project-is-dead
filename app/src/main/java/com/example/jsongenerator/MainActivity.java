@@ -137,6 +137,12 @@ public class MainActivity extends AppCompatActivity {
         appVersion = getAppVersion();
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveData();
+    }
+
     private String getAppVersion() {
         try {
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
@@ -1396,6 +1402,7 @@ public class MainActivity extends AppCompatActivity {
                     reader.close();
                     token = sb.toString().trim();
                     tvTokenStatus.setText("Token已加载");
+                    saveData();
                     Toast.makeText(this, "Token读取成功", Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
                     Toast.makeText(this, "Token读取失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
