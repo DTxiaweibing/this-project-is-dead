@@ -267,6 +267,39 @@ public class GitHubUploader {
         return buffer.toByteArray();
     }
 
+    public void deleteFile(String token, String owner, String repo, String path, String sha, String commitMessage, UploadCallback callback) {
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String apiUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/contents/" + path;
+                    JSONObject requestBody = new JSONObject();
+                    requestBody.put("message", commitMessage);
+                    requestBody.put("sha", sha);
+
+                    Request request = new Request.Builder()
+                        .url(apiUrl)
+                        .header("Authorization", "token " + token)
+                        .header("Content-Type", "application/json")
+                        .delete(RequestBody.create(
+                                MediaType.parse("application/json; charset=utf-8"),
+                                requestBody.toString()))
+                        .build();
+
+                    Response response = client.newCall(request).execute();
+                    if (response.isSuccessful()) {
+                        callback.onSuccess("删除成功: " + path);
+                    } else {
+                        String errorBody = response.body() != null ? response.body().string() : "";
+                        callback.onFailure("删除失败: HTTP " + response.code() + " " + errorBody);
+                    }
+                } catch (Exception e) {
+                    callback.onFailure("删除异常: " + e.getMessage());
+                }
+            }
+        });
+    }
+
     public void shutdown() {
         executor.shutdown();
         try {

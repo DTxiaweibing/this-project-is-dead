@@ -363,6 +363,19 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        lvGithubFiles.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                GitHubFile file = githubFileList.get(position);
+                if ("file".equals(file.getType())) {
+                    confirmDeleteFile(file);
+                } else {
+                    Toast.makeText(MainActivity.this, "文件夹不支持删除", Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            }
+        });
+
         // ==================== 新增：返回上级目录按钮 ====================
         btnBackFolder.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -622,12 +635,12 @@ public class MainActivity extends AppCompatActivity {
                         String itemPath = o.getString("path");
                         String type = o.getString("type");
                         String dUrl = o.optString("download_url", "");
+                        String sha = o.optString("sha", "");
 
-                        // 列出文件和文件夹
                         if ("dir".equals(type)) {
-                            tempList.add(new GitHubFile(name, itemPath, type, ""));
+                            tempList.add(new GitHubFile(name, itemPath, type, "", sha));
                         } else if ("file".equals(type) && !dUrl.isEmpty()) {
-                            tempList.add(new GitHubFile(name, itemPath, type, dUrl));
+                            tempList.add(new GitHubFile(name, itemPath, type, dUrl, sha));
                         }
                     }
 
@@ -1328,6 +1341,66 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }).start();
+    }
+
+    private void confirmDeleteFile(final GitHubFile file) {
+        new AlertDialog.Builder(this)
+            .setTitle("删除文件")
+            .setMessage("确定要删除 " + file.getName() + " 吗？\n此操作会直接提交到 GitHub。")
+            .setPositiveButton("删除", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    deleteFileFromGithub(file);
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+
+    private void deleteFileFromGithub(final GitHubFile file) {
+        String url = etGithubUrl.getText().toString().trim();
+        if (url.isEmpty() || token == null) {
+            Toast.makeText(this, "请先输入仓库地址和Token", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] parts = resolveOwnerRepo();
+        if (parts == null) {
+            Toast.makeText(this, "仓库地址格式错误", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final String owner = parts[0];
+        final String repo = parts[1];
+
+        Toast.makeText(this, "正在删除: " + file.getName(), Toast.LENGTH_SHORT).show();
+
+        GitHubUploader uploader = new GitHubUploader();
+        uploader.deleteFile(token, owner, repo, file.getPath(), file.getSha(),
+            "删除文件: " + file.getName(),
+            new GitHubUploader.UploadCallback() {
+                @Override
+                public void onSuccess(String message) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                            queryGithub(currentPath);
+                        }
+                    });
+                }
+
+                @Override
+                public void onFailure(final String error) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+
+                @Override
+                public void onProgress(String status) {}
+            });
     }
 
     private void saveData() {
