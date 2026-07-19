@@ -2,333 +2,215 @@ package com.example.jsongenerator;
 
 import android.app.Activity;
 import android.app.Application;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
-import android.content.res.Resources;
-import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.text.TextUtils;
-import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.ViewGroup;
-import android.widget.HorizontalScrollView;
+import android.os.Process;
+import android.view.View;
+import android.widget.Button;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
+
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.lang.Thread.UncaughtExceptionHandler;
-import java.text.DateFormat;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Locale;
 
 public class GlobalApplication extends Application {
 
-    private static Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+    private static final String CRASH_DIR = "crash_logs";
+    private static final String CRASH_FILE = "last_crash.txt";
 
     @Override
     public void onCreate() {
         super.onCreate();
-        CrashHandler.getInstance().registerGlobal(this);
-        CrashHandler.getInstance().registerPart(this);
+        Thread.setDefaultUncaughtExceptionHandler(new CrashHandler(this));
     }
 
-    public static void write(InputStream input, OutputStream output) throws IOException {
-        byte[] buf = new byte[1024 * 8];
-        int len;
-        while ((len = input.read(buf)) != -1) {
-            output.write(buf, 0, len);
-        }
+    private static File getCrashDir(Context context) {
+        File dir = new File(context.getFilesDir(), CRASH_DIR);
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
     }
 
-    public static void write(File file, byte[] data) throws IOException {
-        File parent = file.getParentFile();
-        if (parent != null && !parent.exists()) parent.mkdirs();
+    public static File getLastCrashFile(Context context) {
+        return new File(context.getFilesDir(), CRASH_FILE);
+    }
 
-        ByteArrayInputStream input = new ByteArrayInputStream(data);
-        FileOutputStream output = new FileOutputStream(file);
+    public static void saveCrashLog(Context context, String log) {
         try {
-            write(input, output);
-        } finally {
-            closeIO(input, output);
-        }
+            String time = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            File dir = getCrashDir(context);
+            try (PrintWriter pw = new PrintWriter(new File(dir, "crash_" + time + ".txt"))) {
+                pw.println(log);
+            }
+
+            File lastCrash = getLastCrashFile(context);
+            try (FileOutputStream fos = new FileOutputStream(lastCrash)) {
+                fos.write(log.getBytes("UTF-8"));
+            }
+        } catch (Exception ignored) {}
     }
 
-    public static String toString(InputStream input) throws IOException {
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        write(input, output);
+    public static String readLastCrashLog(Context context) {
+        File file = getLastCrashFile(context);
+        if (!file.exists()) return null;
         try {
-            return output.toString("UTF-8");
-        } finally {
-            closeIO(input, output);
+            StringBuilder sb = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line).append("\n");
+                }
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
         }
     }
 
-    public static void closeIO(Closeable... closeables) {
-        for (Closeable closeable : closeables) {
+    public static void clearCrashLog(Context context) {
+        File file = getLastCrashFile(context);
+        if (file.exists()) file.delete();
+        File dir = getCrashDir(context);
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File f : files) f.delete();
+        }
+    }
+
+    private static volatile boolean isHandlingCrash = false;
+
+    private static class CrashHandler implements Thread.UncaughtExceptionHandler {
+        private final Context context;
+
+        CrashHandler(Context context) {
+            this.context = context.getApplicationContext();
+        }
+
+        @Override
+        public void uncaughtException(Thread thread, Throwable throwable) {
+            if (isHandlingCrash) {
+                Process.killProcess(Process.myPid());
+                System.exit(0);
+                return;
+            }
+            isHandlingCrash = true;
             try {
-                if (closeable != null) closeable.close();
-            } catch (IOException ignored) {}
+                String log = buildLog(throwable);
+                saveCrashLog(context, log);
+
+                Intent intent = new Intent(context, CrashActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                context.startActivity(intent);
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        }
+
+        private String buildLog(Throwable throwable) {
+            String time = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(new Date());
+
+            String versionName = "unknown";
+            long versionCode = 0;
+            try {
+                PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+                versionName = pi.versionName;
+                versionCode = Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+            } catch (Throwable ignored) {}
+
+            LinkedHashMap<String, String> head = new LinkedHashMap<>();
+            head.put("Time", time);
+            head.put("Device", String.format("%s %s", Build.MANUFACTURER, Build.MODEL));
+            head.put("Android", String.format("%s (API %d)", Build.VERSION.RELEASE, Build.VERSION.SDK_INT));
+            head.put("Version", String.format("%s (%d)", versionName, versionCode));
+            head.put("Abis", Build.SUPPORTED_ABIS != null ? Arrays.toString(Build.SUPPORTED_ABIS) : "unknown");
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("=== 崩溃日志 ===\n\n");
+            for (String key : head.keySet()) {
+                sb.append(key).append(": ").append(head.get(key)).append("\n");
+            }
+            sb.append("\n");
+
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            throwable.printStackTrace(pw);
+            pw.flush();
+            sb.append(sw.toString());
+
+            return sb.toString();
         }
     }
 
-    public static class CrashHandler {
-
-        public static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER = Thread.getDefaultUncaughtExceptionHandler();
-
-        private static CrashHandler sInstance;
-
-        private PartCrashHandler mPartCrashHandler;
-
-        public static CrashHandler getInstance() {
-            if (sInstance == null) {
-                sInstance = new CrashHandler();
-            }
-            return sInstance;
-        }
-
-        public void registerGlobal(Context context) {
-            registerGlobal(context, null);
-        }
-
-        public void registerGlobal(Context context, String crashDir) {
-            Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandlerImpl(context.getApplicationContext(), crashDir));
-        }
-
-        public void unregister() {
-            Thread.setDefaultUncaughtExceptionHandler(DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
-        }
-
-        public void registerPart(Context context) {
-            unregisterPart(context);
-            mPartCrashHandler = new PartCrashHandler(context.getApplicationContext());
-            MAIN_HANDLER.postAtFrontOfQueue(mPartCrashHandler);
-        }
-
-        public void unregisterPart(Context context) {
-            if (mPartCrashHandler != null) {
-                mPartCrashHandler.isRunning.set(false);
-                mPartCrashHandler = null;
-            }
-        }
-
-        private static class PartCrashHandler implements Runnable {
-
-            private final Context mContext;
-
-            public AtomicBoolean isRunning = new AtomicBoolean(true);
-
-            public PartCrashHandler(Context context) {
-                this.mContext = context;
-            }
-
-            @Override
-            public void run() {
-                while (isRunning.get()) {
-                    try {
-                        Looper.loop();
-                    } catch (final Throwable e) {
-                        e.printStackTrace();
-                        if (isRunning.get()) {
-                            MAIN_HANDLER.post(new Runnable(){
-
-                                    @Override
-                                    public void run() {
-                                        Toast.makeText(mContext, e.toString(), Toast.LENGTH_LONG).show();
-                                    }
-                                });
-                        } else {
-                            if (e instanceof RuntimeException) {
-                                throw (RuntimeException)e;
-                            } else {
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        private static class UncaughtExceptionHandlerImpl implements UncaughtExceptionHandler {
-
-            private static DateFormat DATE_FORMAT = new SimpleDateFormat("yyyy_MM_dd-HH_mm_ss");
-
-            private final Context mContext;
-
-            private final File mCrashDir;
-
-            public UncaughtExceptionHandlerImpl(Context context, String crashDir) {
-                this.mContext = context;
-                this.mCrashDir = TextUtils.isEmpty(crashDir) ? new File(mContext.getExternalCacheDir(), "crash") : new File(crashDir);
-            }
-
-            @Override
-            public void uncaughtException(Thread thread, Throwable throwable) {
-                try {
-
-                    String log = buildLog(throwable);
-                    writeLog(log);
-
-                    try {
-                        Intent intent = new Intent(mContext, CrashActivity.class);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        intent.putExtra(Intent.EXTRA_TEXT, log);
-                        mContext.startActivity(intent);
-                    } catch (Throwable e) {
-                        e.printStackTrace();
-                        writeLog(e.toString());
-                    }
-
-                    throwable.printStackTrace();
-                    android.os.Process.killProcess(android.os.Process.myPid());
-                    System.exit(0);
-
-                } catch (Throwable e) {
-                    if (DEFAULT_UNCAUGHT_EXCEPTION_HANDLER != null) DEFAULT_UNCAUGHT_EXCEPTION_HANDLER.uncaughtException(thread, throwable);
-                }
-            }
-
-            private String buildLog(Throwable throwable) {
-                String time = DATE_FORMAT.format(new Date());
-
-                String versionName = "unknown";
-                long versionCode = 0;
-                try {
-                    PackageInfo packageInfo = mContext.getPackageManager().getPackageInfo(mContext.getPackageName(), 0);
-                    versionName = packageInfo.versionName;
-                    versionCode = Build.VERSION.SDK_INT >= 28 ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
-                } catch (Throwable ignored) {}
-
-                LinkedHashMap<String, String> head = new LinkedHashMap<String, String>();
-                head.put("Time Of Crash", time);
-                head.put("Device", String.format("%s, %s", Build.MANUFACTURER, Build.MODEL));
-                head.put("Android Version", String.format("%s (%d)", Build.VERSION.RELEASE, Build.VERSION.SDK_INT));
-                head.put("App Version", String.format("%s (%d)", versionName, versionCode));
-                head.put("Kernel", getKernel());
-                head.put("Support Abis", Build.VERSION.SDK_INT >= 21 && Build.SUPPORTED_ABIS != null ? Arrays.toString(Build.SUPPORTED_ABIS): "unknown");
-                head.put("Fingerprint", Build.FINGERPRINT);
-
-                StringBuilder builder = new StringBuilder();
-
-                for (String key : head.keySet()) {
-                    if (builder.length() != 0) builder.append("\n");
-                    builder.append(key);
-                    builder.append(" :    ");
-                    builder.append(head.get(key));
-                }
-
-                builder.append("\n\n");
-                builder.append(Log.getStackTraceString(throwable));
-
-                return builder.toString(); 
-            }
-
-            private void writeLog(String log) {
-                String time = DATE_FORMAT.format(new Date());
-                File file = new File(mCrashDir, "crash_" + time + ".txt");
-                try {
-                    write(file, log.getBytes("UTF-8"));
-                } catch (Throwable e) {
-                    e.printStackTrace();
-                } 
-            }
-
-            private static String getKernel() {
-                try {
-                    return GlobalApplication.toString(new FileInputStream("/proc/version")).trim();
-                } catch (Throwable e) {
-                    return e.getMessage();
-                }
-            }
-        }
-    }
+    // ==================== 崩溃显示页面 ====================
 
     public static final class CrashActivity extends Activity {
-
-        private String mLog;
-
         @Override
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
 
-            setTheme(android.R.style.Theme_DeviceDefault);
-            setTitle("App Crash");
+            setTitle("应用崩溃");
+            getWindow().setStatusBarColor(0xFFBF360C);
 
-            mLog = getIntent().getStringExtra(Intent.EXTRA_TEXT);
-
-            ScrollView contentView = new ScrollView(this);
-            contentView.setFillViewport(true);
-
-            HorizontalScrollView horizontalScrollView = new HorizontalScrollView(this);
-
-            TextView textView = new TextView(this);
-            int padding = dp2px(16);
-            textView.setPadding(padding, padding, padding, padding);
-            textView.setText(mLog);
-            textView.setTextIsSelectable(true);
-            textView.setTypeface(Typeface.DEFAULT);
-            textView.setLinksClickable(true);
-
-            horizontalScrollView.addView(textView);
-            contentView.addView(horizontalScrollView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-
-            setContentView(contentView);
-        }
-
-        private void restart() {
-            Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-            }
-            finish();
-            android.os.Process.killProcess(android.os.Process.myPid());
-            System.exit(0);
-        }
-
-        private static int dp2px(float dpValue) {
-            final float scale = Resources.getSystem().getDisplayMetrics().density;
-            return (int) (dpValue * scale + 0.5f);
+            View content = buildDefaultView();
+            setContentView(content);
         }
 
         @Override
-        public boolean onCreateOptionsMenu(Menu menu) {
-            menu.add(0, android.R.id.copy, 0, android.R.string.copy)
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-            return super.onCreateOptionsMenu(menu);
+        protected void onDestroy() {
+            super.onDestroy();
+            isHandlingCrash = false;
         }
 
-        @Override
-        public boolean onOptionsItemSelected(MenuItem item) {
-            switch (item.getItemId()) {
-                case android.R.id.copy:
-                    ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    cm.setPrimaryClip(ClipData.newPlainText(getPackageName(), mLog));
-                    return true;
-            }
-            return super.onOptionsItemSelected(item);
-        }
+        private View buildDefaultView() {
+            ScrollView sv = new ScrollView(this);
+            sv.setPadding(16, 16, 16, 16);
+            sv.setFillViewport(true);
 
-        @Override
-        public void onBackPressed() {
-            restart();
+            TextView tvLog = new TextView(this);
+            tvLog.setId(android.R.id.text1);
+            tvLog.setTextIsSelectable(true);
+            tvLog.setText(readLastCrashLog(this) != null ? readLastCrashLog(this) : "未捕获到崩溃信息");
+
+            Button btnShare = new Button(this);
+            btnShare.setText("转发给开发者");
+            btnShare.setOnClickListener(v -> {
+                Intent share = new Intent(Intent.ACTION_SEND);
+                share.setType("text/plain");
+                share.putExtra(Intent.EXTRA_TEXT, tvLog.getText().toString());
+                startActivity(Intent.createChooser(share, "分享崩溃日志"));
+            });
+
+            Button btnClear = new Button(this);
+            btnClear.setText("我知道了");
+            btnClear.setOnClickListener(v -> {
+                clearCrashLog(this);
+                isHandlingCrash = false;
+                finishAffinity();
+                Process.killProcess(Process.myPid());
+                System.exit(0);
+            });
+
+            android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+            layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+            layout.addView(tvLog, new android.widget.LinearLayout.LayoutParams(
+                    -1, 0, 1));
+            layout.addView(btnShare, new android.widget.LinearLayout.LayoutParams(-1, -2));
+            layout.addView(btnClear, new android.widget.LinearLayout.LayoutParams(-1, -2));
+
+            sv.addView(layout);
+            return sv;
         }
     }
 }

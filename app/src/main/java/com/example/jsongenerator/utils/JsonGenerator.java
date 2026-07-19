@@ -39,7 +39,6 @@ public class JsonGenerator {
             fileInfo.put("md5", md5);
             fileInfo.put("sha256", sha256);
             fileInfo.put("download_url", downloadUrl);
-            fileInfo.put("github_repo", githubRepo);
             root.put("file_info", fileInfo);
 
             root.put("update_log", updateLog);

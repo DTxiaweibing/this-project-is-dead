@@ -130,6 +130,8 @@ public class MainActivity extends AppCompatActivity {
         setupTabs();
         adapter = new GitHubFileListAdapter(this, githubFileList);
         lvGithubFiles.setAdapter(adapter);
+        lvGithubFiles.setDivider(null);
+        lvGithubFiles.setDividerHeight(0);
         setListener();
         restoreData();
         selectTab(btnTabRepo);
@@ -356,9 +358,14 @@ public class MainActivity extends AppCompatActivity {
                     // 点击的是文件夹 → 进入子目录
                     navigateToFolder(file.getPath());
                 } else {
-                    // 点击的是文件 → 选中文件
-                    adapter.setSelectedPos(position);
-                    Toast.makeText(MainActivity.this, "已选中: " + file.getName(), Toast.LENGTH_SHORT).show();
+                    // 点击的是文件 → 切换选中状态
+                    if (adapter.getSelectedPos() == position) {
+                        adapter.setSelectedPos(-1);
+                        Toast.makeText(MainActivity.this, "已取消选中", Toast.LENGTH_SHORT).show();
+                    } else {
+                        adapter.setSelectedPos(position);
+                        Toast.makeText(MainActivity.this, "已选中: " + file.getName(), Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
         });
@@ -643,6 +650,17 @@ public class MainActivity extends AppCompatActivity {
                             tempList.add(new GitHubFile(name, itemPath, type, dUrl, sha));
                         }
                     }
+
+                    java.util.Collections.sort(tempList, new java.util.Comparator<GitHubFile>() {
+                        @Override
+                        public int compare(GitHubFile a, GitHubFile b) {
+                            boolean aIsDir = "dir".equals(a.getType());
+                            boolean bIsDir = "dir".equals(b.getType());
+                            if (aIsDir && !bIsDir) return -1;
+                            if (!aIsDir && bIsDir) return 1;
+                            return a.getName().compareToIgnoreCase(b.getName());
+                        }
+                    });
 
                     runOnUiThread(new Runnable() {
                         @Override
@@ -958,13 +976,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void clearUpdateContent() {
-        LinearLayout container = findViewById(R.id.ll_update_container);
-        if (container != null && container.getChildCount() > 0) {
-            container.removeAllViews();
-            Toast.makeText(this, "已清除更新内容", Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(this, "没有可清除的更新内容", Toast.LENGTH_SHORT).show();
+        updateLogManager.initTable(new ArrayList<String>());
+        for (int i = 0; i < 10; i++) {
+            updateLogManager.addRow("");
         }
+        Toast.makeText(this, "已清除更新内容", Toast.LENGTH_SHORT).show();
     }
 
     private void showWebUrlInputDialog(final String fileName, final long fileSize,
@@ -1404,28 +1420,32 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void saveData() {
-        String githubUrl = etGithubUrl.getText().toString().trim();
-        dataHelper.saveData(githubUrl, token, updateLogManager.collectLogRows());
+        String githubUrl = etGithubUrl.getText().toString();
+        dataHelper.saveData(githubUrl, token, updateLogManager.getAllRows());
     }
 
     private void restoreData() {
-        DataPersistenceHelper.RestoredData data = dataHelper.restoreData();
-        if (data.githubUrl != null && !data.githubUrl.isEmpty()) {
-            etGithubUrl.setText(data.githubUrl);
+        DataPersistenceHelper.RestoredData restored = dataHelper.restoreData();
+        etGithubUrl.setText(restored.githubUrl);
+        token = restored.token;
+        tvTokenStatus.setText(token != null && !token.isEmpty() ? "Token已加载" : "未读取");
+        updateLogManager.initTable(restored.updateRows);
+        if (restored.updateRows.size() < 10) {
+            for (int i = restored.updateRows.size(); i < 10; i++) {
+                updateLogManager.addRow("");
+            }
         }
-        if (data.token != null) {
-            token = data.token;
-            tvTokenStatus.setText("已加载Token");
-        }
-        if (data.updateRows != null) {
-            updateLogManager.restoreRows(data.updateRows);
-        }
-        if (data.baseFilePath != null && data.baseFileName != null) {
-            File file = new File(data.baseFilePath);
-            if (file.exists()) {
-                baseFileInternalPath = data.baseFilePath;
-                baseFileName = data.baseFileName;
+        baseFileInternalPath = restored.baseFilePath;
+        baseFileName = restored.baseFileName;
+        if (baseFileInternalPath != null && baseFileName != null) {
+            File baseFile = new File(baseFileInternalPath);
+            if (baseFile.exists()) {
                 tvFileName.setText(baseFileName);
+            } else {
+                baseFileInternalPath = null;
+                baseFileName = null;
+                dataHelper.clearBaseFilePath();
+                Toast.makeText(this, "基准文件已失效，请重新选择", Toast.LENGTH_SHORT).show();
             }
         }
     }

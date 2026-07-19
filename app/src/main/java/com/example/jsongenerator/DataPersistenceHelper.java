@@ -33,9 +33,11 @@ public class DataPersistenceHelper {
 
         // 将更新日志列表转换为字符串存储
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < updateRows.size(); i++) {
-            if (i > 0) sb.append(ROW_SEPARATOR);
-            sb.append(updateRows.get(i));
+        if (updateRows != null) {
+            for (int i = 0; i < updateRows.size(); i++) {
+                if (i > 0) sb.append(ROW_SEPARATOR);
+                sb.append(updateRows.get(i));
+            }
         }
         editor.putString(KEY_UPDATE_ROWS, sb.toString());
         editor.apply();

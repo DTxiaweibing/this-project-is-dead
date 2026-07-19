@@ -268,6 +268,10 @@ public class GitHubUploader {
     }
 
     public void deleteFile(String token, String owner, String repo, String path, String sha, String commitMessage, UploadCallback callback) {
+        if (sha == null || sha.isEmpty()) {
+            callback.onFailure("无法删除：文件SHA为空");
+            return;
+        }
         executor.execute(new Runnable() {
             @Override
             public void run() {

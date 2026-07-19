@@ -24,11 +24,8 @@ public class UpdateLogTableManager {
         this.container = container;
     }
 
-    public void restoreRows(List<String> updateRows) {
-    }
-
     public List<String> collectLogRows() {
-        return null;
+        return getAllRows();
     }
 
     public void initTable(List<String> initialRows) {

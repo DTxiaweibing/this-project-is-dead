@@ -6,6 +6,7 @@ import android.graphics.drawable.Drawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -59,19 +60,26 @@ public class GitHubFileListAdapter extends BaseAdapter {
             LinearLayout layout = new LinearLayout(context);
             layout.setOrientation(LinearLayout.HORIZONTAL);
             layout.setGravity(Gravity.CENTER_VERTICAL);
-            layout.setPadding(16, 14, 16, 14);
+            AbsListView.LayoutParams lp = new AbsListView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dpToPx(50));
+            layout.setLayoutParams(lp);
+            layout.setPadding(16, 0, 16, 0);
+            layout.setBackgroundResource(R.drawable.list_item_bg);
 
             ImageView ivIcon = new ImageView(context);
             ivIcon.setPadding(0, 0, 12, 0);
             LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
-                    24, 24);
+                    64, 64);
+            iconParams.gravity = Gravity.CENTER_VERTICAL;
             layout.addView(ivIcon, iconParams);
 
             TextView tvName = new TextView(context);
             tvName.setTextSize(14);
             tvName.setSingleLine(true);
+            tvName.setGravity(Gravity.CENTER_VERTICAL);
             LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
-                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+                    0, ViewGroup.LayoutParams.MATCH_PARENT, 1);
             layout.addView(tvName, nameParams);
 
             holder = new ViewHolder();
@@ -87,13 +95,13 @@ public class GitHubFileListAdapter extends BaseAdapter {
         GitHubFile file = fileList.get(position);
 
         if ("dir".equals(file.getType())) {
-            holder.ivIcon.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_folder));
+            holder.ivIcon.setVisibility(View.VISIBLE);
+            holder.ivIcon.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.folder));
             holder.ivIcon.setColorFilter(null);
             holder.tvName.setText(file.getName() + "/");
             holder.tvName.setTextColor(Color.parseColor("#1565C0"));
         } else {
-            holder.ivIcon.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.ic_file));
-            holder.ivIcon.setColorFilter(null);
+            holder.ivIcon.setVisibility(View.GONE);
             holder.tvName.setText(file.getName());
             holder.tvName.setTextColor(Color.BLACK);
         }
@@ -101,16 +109,24 @@ public class GitHubFileListAdapter extends BaseAdapter {
         if (position == selectedPos) {
             holder.layout.setBackgroundColor(0xFF2196F3);
             holder.tvName.setTextColor(0xFFFFFFFF);
-            holder.ivIcon.setColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN);
-        } else {
-            holder.layout.setBackgroundColor(0xFFFFFFFF);
-            if (!"dir".equals(file.getType())) {
-                holder.tvName.setTextColor(0xFF000000);
+            if ("dir".equals(file.getType())) {
+                holder.ivIcon.setColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN);
             }
-            holder.ivIcon.setColorFilter(null);
+        } else {
+            holder.layout.setBackgroundResource(R.drawable.list_item_bg);
+            if ("dir".equals(file.getType())) {
+                holder.tvName.setTextColor(Color.parseColor("#1565C0"));
+                holder.ivIcon.setColorFilter(null);
+            } else {
+                holder.tvName.setTextColor(Color.BLACK);
+            }
         }
 
         return convertView;
+    }
+
+    private int dpToPx(int dp) {
+        return (int) (dp * context.getResources().getDisplayMetrics().density);
     }
 
     private static class ViewHolder {
