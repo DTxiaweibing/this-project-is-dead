@@ -87,10 +87,12 @@ public class MainActivity extends AppCompatActivity {
     private String baseFileInternalPath;
     private String token;
     private List<GitHubFile> githubFileList = new ArrayList<>();
+    private List<GitHubFile> allGithubFiles = new ArrayList<>();
     private GitHubFileListAdapter adapter;
     private UpdateLogTableManager updateLogManager;
     private String generatedJson;
     private OkHttpClient client = new OkHttpClient();
+    private GitHubUploader githubUploader = new GitHubUploader();
     private DataPersistenceHelper dataHelper;
     private TextWatcher jsonTextWatcher;
 
@@ -106,6 +108,16 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private String appVersion;
+
+    private long lastClickTime = 0;
+    private int lastClickPosition = -1;
+    private static final long DOUBLE_CLICK_INTERVAL = 500;
+
+    private LinearLayout fileEditorPanel, fileListPanel;
+    private EditText etFileEditor, etFileSearch;
+    private Button btnEditorSave, btnEditorCancel;
+    private GitHubFile editingFile;
+    private String editingOwner, editingRepo;
 
     // ==================== 新增：文件夹导航相关字段 ====================
     /** 当前浏览的仓库路径（空字符串表示仓库根目录） */
@@ -227,6 +239,13 @@ public class MainActivity extends AppCompatActivity {
             }
         };
         etJsonPreview.addTextChangedListener(jsonTextWatcher);
+
+        fileEditorPanel = findViewById(R.id.file_editor_panel);
+        etFileEditor = findViewById(R.id.et_file_editor);
+        btnEditorSave = findViewById(R.id.btn_editor_save);
+        btnEditorCancel = findViewById(R.id.btn_editor_cancel);
+        fileListPanel = findViewById(R.id.file_list_panel);
+        etFileSearch = findViewById(R.id.et_file_search);
     }
 
     private void requestPermission() {
@@ -272,16 +291,15 @@ public class MainActivity extends AppCompatActivity {
         btnTabRepo.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                // 长按仓库Tab：清空并回到根目录
-                if (githubFileList != null && !githubFileList.isEmpty()) {
-                    githubFileList.clear();
-                    adapter.notifyDataSetChanged();
-                    currentPath = "";
-                    updateBreadcrumb();
-                    Toast.makeText(MainActivity.this, "已清除仓库文件，回到根目录", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(MainActivity.this, "没有可清除的仓库文件", Toast.LENGTH_SHORT).show();
-                }
+                fileEditorPanel.setVisibility(View.GONE);
+                allGithubFiles.clear();
+                githubFileList.clear();
+                adapter.notifyDataSetChanged();
+                currentPath = "";
+                fileListPanel.setVisibility(View.GONE);
+                etFileSearch.setVisibility(View.GONE);
+                updateBreadcrumb();
+                Toast.makeText(MainActivity.this, "已清除仓库文件，回到根目录", Toast.LENGTH_SHORT).show();
                 return true;
             }
         });
@@ -299,15 +317,15 @@ public class MainActivity extends AppCompatActivity {
         btnTabRepo.setSelected(false);
         btnTabJson.setSelected(false);
         btnTabUpdate.setSelected(false);
-        lvGithubFiles.setVisibility(View.GONE);
+        fileListPanel.setVisibility(View.GONE);
         scrollJson.setVisibility(View.GONE);
         scrollUpdate.setVisibility(View.GONE);
+        fileEditorPanel.setVisibility(View.GONE);
 
         selected.setSelected(true);
 
         if (selected == btnTabRepo) {
-            lvGithubFiles.setVisibility(View.VISIBLE);
-            // 仓库Tab显示时展示面包屑导航
+            fileListPanel.setVisibility(View.VISIBLE);
             updateBreadcrumb();
         } else {
             // 切换到其他Tab时隐藏面包屑
@@ -343,7 +361,7 @@ public class MainActivity extends AppCompatActivity {
         btnQuery.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 查询时重置到根目录
+                closeFileEditor();
                 currentPath = "";
                 queryGithub("");
             }
@@ -355,16 +373,22 @@ public class MainActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 GitHubFile file = githubFileList.get(position);
                 if ("dir".equals(file.getType())) {
-                    // 点击的是文件夹 → 进入子目录
                     navigateToFolder(file.getPath());
+                    return;
+                }
+
+                long now = System.currentTimeMillis();
+                if (position == lastClickPosition && now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
+                    // 双击文件 → 打开编辑
+                    openFileEditor(file);
                 } else {
-                    // 点击的是文件 → 切换选中状态
+                    // 单击 → 选中/取消
+                    lastClickTime = now;
+                    lastClickPosition = position;
                     if (adapter.getSelectedPos() == position) {
                         adapter.setSelectedPos(-1);
-                        Toast.makeText(MainActivity.this, "已取消选中", Toast.LENGTH_SHORT).show();
                     } else {
                         adapter.setSelectedPos(position);
-                        Toast.makeText(MainActivity.this, "已选中: " + file.getName(), Toast.LENGTH_SHORT).show();
                     }
                 }
             }
@@ -496,6 +520,65 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        btnEditorSave.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (editingFile == null) return;
+                final String newContent = etFileEditor.getText().toString();
+                Toast.makeText(MainActivity.this, "正在保存...", Toast.LENGTH_SHORT).show();
+
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        githubUploader.uploadFileSync2(token, editingOwner, editingRepo,
+                                editingFile.getPath(), newContent.getBytes(),
+                                "编辑文件: " + editingFile.getName(),
+                                new GitHubUploader.UploadCallback() {
+                            @Override
+                            public void onSuccess(String message) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                                        closeFileEditor();
+                                    }
+                                });
+                            }
+
+                            @Override
+                            public void onFailure(final String error) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            }
+
+                            @Override
+                            public void onProgress(String status) {}
+                        });
+                    }
+                }).start();
+            }
+        });
+
+        btnEditorCancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                closeFileEditor();
+            }
+        });
+
+        etFileSearch.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override
+            public void afterTextChanged(Editable s) {
+                filterFiles(s.toString());
+            }
+        });
+
         etGithubUrl.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
@@ -551,6 +634,7 @@ public class MainActivity extends AppCompatActivity {
     private void navigateToFolder(String folderPath) {
         currentPath = folderPath;
         adapter.setSelectedPos(-1);
+        closeFileEditor();
         queryGithub(folderPath);
     }
 
@@ -566,6 +650,7 @@ public class MainActivity extends AppCompatActivity {
             currentPath = currentPath.substring(0, lastSlash);
         }
         adapter.setSelectedPos(-1);
+        closeFileEditor();
         queryGithub(currentPath);
     }
 
@@ -665,10 +750,15 @@ public class MainActivity extends AppCompatActivity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
+                            allGithubFiles.clear();
+                            allGithubFiles.addAll(tempList);
                             githubFileList.clear();
                             githubFileList.addAll(tempList);
                             adapter.setSelectedPos(-1);
                             adapter.notifyDataSetChanged();
+                            etFileSearch.setText("");
+                            etFileSearch.setVisibility(tempList.isEmpty() ? View.GONE : View.VISIBLE);
+                            fileListPanel.setVisibility(View.VISIBLE);
                             updateBreadcrumb();
                             String pathInfo = currentPath.isEmpty() ? "根目录" : currentPath;
                             Toast.makeText(MainActivity.this, "加载完成: " + tempList.size() + " 个条目 (" + pathInfo + ")", Toast.LENGTH_SHORT).show();
@@ -685,6 +775,59 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void openFileEditor(final GitHubFile file) {
+        final String[] ownerRepo = resolveOwnerRepo();
+        if (ownerRepo == null) return;
+        editingOwner = ownerRepo[0];
+        editingRepo = ownerRepo[1];
+        editingFile = file;
+
+        Toast.makeText(this, "正在加载文件...", Toast.LENGTH_SHORT).show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final String content = githubUploader.getFileContent(token, editingOwner, editingRepo, file.getPath());
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (content == null) {
+                            Toast.makeText(MainActivity.this, "加载文件失败", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        etFileEditor.setText(content);
+                        etFileEditor.setSelection(content.length());
+                        fileListPanel.setVisibility(View.GONE);
+                        fileEditorPanel.setVisibility(View.VISIBLE);
+                        breadcrumbBar.setVisibility(View.GONE);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private void closeFileEditor() {
+        fileEditorPanel.setVisibility(View.GONE);
+        fileListPanel.setVisibility(View.VISIBLE);
+        editingFile = null;
+        updateBreadcrumb();
+    }
+
+    private void filterFiles(String query) {
+        githubFileList.clear();
+        if (query.isEmpty()) {
+            githubFileList.addAll(allGithubFiles);
+        } else {
+            for (GitHubFile f : allGithubFiles) {
+                if (f.getName().toLowerCase().contains(query.toLowerCase())) {
+                    githubFileList.add(f);
+                }
+            }
+        }
+        adapter.setSelectedPos(-1);
+        adapter.notifyDataSetChanged();
     }
 
     private void makeJson() {

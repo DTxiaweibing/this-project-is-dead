@@ -178,7 +178,7 @@ public class GitHubUploader {
                         }
 
                         int done = total - (int) latch.getCount();
-                        callback.onProgress(String.format("进度: %d/%d (成功: %d, 失败: %d)",
+                        callback.onProgress(String.format(java.util.Locale.ROOT, "进度: %d/%d (成功: %d, 失败: %d)",
                                                           done, total, successCount.get(), failCount.get()));
 
                         latch.countDown();
@@ -200,10 +200,10 @@ public class GitHubUploader {
                     final int fail = failCount.get();
 
                     if (fail == 0) {
-                        callback.onSuccess(String.format("恭喜！所有 %d 个文件上传成功！", total));
+                        callback.onSuccess(String.format(java.util.Locale.ROOT, "恭喜！所有 %d 个文件上传成功！", total));
                     } else {
                         StringBuilder msg = new StringBuilder();
-                        msg.append(String.format("上传完成：成功 %d 个，失败 %d 个。", success, fail));
+                        msg.append(String.format(java.util.Locale.ROOT, "上传完成：成功 %d 个，失败 %d 个。", success, fail));
                         if (!failedDetails.isEmpty()) {
                             msg.append("\n失败文件：");
                             for (int i = 0; i < Math.min(failedDetails.size(), 5); i++) {
@@ -299,6 +299,43 @@ public class GitHubUploader {
                     }
                 } catch (Exception e) {
                     callback.onFailure("删除异常: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    public String getFileContent(String token, String owner, String repo, String path) {
+        try {
+            String apiUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/contents/" + path;
+            Request request = new Request.Builder()
+                .url(apiUrl)
+                .header("Authorization", "token " + token)
+                .get()
+                .build();
+            Response response = client.newCall(request).execute();
+            if (response.isSuccessful()) {
+                String body = response.body().string();
+                JSONObject json = new JSONObject(body);
+                String content = json.getString("content").replace("\n", "").replace("\r", "");
+                return new String(Base64.decode(content, Base64.DEFAULT), "UTF-8");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "getFileContent失败", e);
+        }
+        return null;
+    }
+
+    public void uploadFileSync2(String token, String owner, String repo,
+                                String remotePath, byte[] content,
+                                String commitMessage, UploadCallback callback) {
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                String result = uploadFileSync(token, owner, repo, remotePath, content, commitMessage);
+                if (result == null) {
+                    callback.onSuccess("保存成功: " + remotePath);
+                } else {
+                    callback.onFailure("保存失败: " + result);
                 }
             }
         });

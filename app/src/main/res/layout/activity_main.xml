@@ -226,11 +226,26 @@
             android:layout_marginTop="4dp"
             android:background="#f5f5f5"
             android:padding="2dp">
-            <ListView
-                android:id="@+id/lv_github_files"
+            <LinearLayout
+                android:id="@+id/file_list_panel"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:visibility="gone"/>
+                android:orientation="vertical"
+                android:visibility="gone">
+                <EditText
+                    android:id="@+id/et_file_search"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="搜索文件..."
+                    android:padding="8dp"
+                    android:textSize="13sp"
+                    android:background="#ffffff"
+                    android:singleLine="true"/>
+                <ListView
+                    android:id="@+id/lv_github_files"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"/>
+            </LinearLayout>
             <ScrollView
                 android:id="@+id/scroll_json"
                 android:layout_width="match_parent"
@@ -251,6 +266,58 @@
                     android:inputType="textMultiLine"
                     android:minLines="10"/>
             </ScrollView>
+            <LinearLayout
+                android:id="@+id/file_editor_panel"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:background="#ffffff">
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:padding="4dp">
+                    <EditText
+                        android:id="@+id/et_file_editor"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="13sp"
+                        android:typeface="monospace"
+                        android:background="@null"
+                        android:padding="8dp"
+                        android:gravity="top"
+                        android:inputType="textMultiLine"
+                        android:minLines="10"/>
+                </ScrollView>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="8dp"
+                    android:gravity="center_horizontal">
+                    <Button
+                        android:id="@+id/btn_editor_save"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:layout_marginRight="4dp"
+                        android:text="保存"
+                        android:textColor="#ffffff"
+                        android:textSize="14sp"
+                        android:background="@drawable/button_blue_round"/>
+                    <Button
+                        android:id="@+id/btn_editor_cancel"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="4dp"
+                        android:text="取消"
+                        android:textColor="#ffffff"
+                        android:textSize="14sp"
+                        android:background="@drawable/button_gray_round"/>
+                </LinearLayout>
+            </LinearLayout>
             <ScrollView
                 android:id="@+id/scroll_update"
                 android:layout_width="match_parent"

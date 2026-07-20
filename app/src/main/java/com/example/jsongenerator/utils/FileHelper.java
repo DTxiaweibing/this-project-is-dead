@@ -80,7 +80,7 @@ public class FileHelper {
                 if (hex.length() == 1) hexString.append('0');
                 hexString.append(hex);
             }
-            return hexString.toString().toUpperCase();
+            return hexString.toString().toUpperCase(java.util.Locale.ROOT);
         } catch (IOException | NoSuchAlgorithmException e) {
             Log.e(TAG, "计算哈希失败", e);
             return null;

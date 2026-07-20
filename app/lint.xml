@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <issue id="HardcodedText" severity="ignore" />
+    <issue id="SetTextI18n" severity="ignore" />
+    <issue id="RtlHardcoded" severity="ignore" />
+    <issue id="RtlSymmetry" severity="ignore" />
+    <issue id="Autofill" severity="ignore" />
+    <issue id="IconLauncherShape" severity="ignore" />
+    <issue id="MonochromeLauncherIcon" severity="ignore" />
+    <issue id="IconLocation" severity="ignore" />
+    <issue id="ScopedStorage" severity="ignore" />
+    <issue id="UnusedResources" severity="ignore" />
+</lint>
