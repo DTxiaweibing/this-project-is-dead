@@ -1,4 +1,26 @@
 <resources>
     <string name="app_name">JSON生成器</string>
-    
+    <string name="title">JSON生成器(GitHub版)</string>
+    <string name="base_file">基准文件</string>
+    <string name="not_selected">未选择</string>
+    <string name="label_token">Token</string>
+    <string name="not_loaded">未读取</string>
+    <string name="hint_github_url">GitHub仓库地址</string>
+    <string name="btn_query">查询</string>
+    <string name="tab_repo_files">仓库文件</string>
+    <string name="tab_update_json">update.json</string>
+    <string name="tab_update_content">更新内容</string>
+    <string name="hint_search">搜索文件…</string>
+    <string name="btn_save">保存</string>
+    <string name="btn_cancel">取消</string>
+    <string name="btn_github_link">GitHub链接</string>
+    <string name="btn_web_link">网页版链接</string>
+    <string name="btn_upload_file">上传文件</string>
+    <string name="btn_upload_folder">上传文件夹</string>
+    <string name="btn_update_existing">更新已有文件</string>
+    <string name="btn_new_file">新建文件</string>
+    <string name="btn_generate">生成</string>
+    <string name="btn_upload_github">上传GitHub</string>
+    <string name="btn_back">⬆</string>
+    <string name="breadcrumb_sep">/</string>
 </resources>

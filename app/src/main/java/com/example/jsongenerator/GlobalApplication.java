@@ -132,8 +132,8 @@ public class GlobalApplication extends Application {
             LinkedHashMap<String, String> head = new LinkedHashMap<>();
             head.put("Time", time);
             head.put("Device", String.format("%s %s", Build.MANUFACTURER, Build.MODEL));
-            head.put("Android", String.format("%s (API %d)", Build.VERSION.RELEASE, Build.VERSION.SDK_INT));
-            head.put("Version", String.format("%s (%d)", versionName, versionCode));
+            head.put("Android", String.format(Locale.US, "%s (API %d)", Build.VERSION.RELEASE, Build.VERSION.SDK_INT));
+            head.put("Version", String.format(Locale.US, "%s (%d)", versionName, versionCode));
             head.put("Abis", Build.SUPPORTED_ABIS != null ? Arrays.toString(Build.SUPPORTED_ABIS) : "unknown");
 
             StringBuilder sb = new StringBuilder();

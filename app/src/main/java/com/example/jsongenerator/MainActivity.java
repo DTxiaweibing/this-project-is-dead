@@ -1,7 +1,6 @@
 package com.example.jsongenerator;
 
 import android.Manifest;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
@@ -14,7 +13,6 @@ import android.text.TextWatcher;
 import android.util.Base64;
 import android.util.Log;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -47,8 +45,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -86,26 +86,21 @@ public class MainActivity extends AppCompatActivity {
     private String baseFileName;
     private String baseFileInternalPath;
     private String token;
-    private List<GitHubFile> githubFileList = new ArrayList<>();
-    private List<GitHubFile> allGithubFiles = new ArrayList<>();
+    private final List<GitHubFile> githubFileList = new ArrayList<>();
+    private final List<GitHubFile> allGithubFiles = new ArrayList<>();
     private GitHubFileListAdapter adapter;
     private UpdateLogTableManager updateLogManager;
     private String generatedJson;
-    private OkHttpClient client = new OkHttpClient();
-    private GitHubUploader githubUploader = new GitHubUploader();
+    private final OkHttpClient client = new OkHttpClient();
+    private final GitHubUploader githubUploader = new GitHubUploader();
     private DataPersistenceHelper dataHelper;
     private TextWatcher jsonTextWatcher;
 
     private SharedPreferences webUrlPrefs;
     private String savedWebBaseUrl = "";
 
-    private Handler autoHideHandler = new Handler();
-    private Runnable autoHideRunnable = new Runnable() {
-        @Override
-        public void run() {
-            hideFloatingButtons();
-        }
-    };
+    private final Handler autoHideHandler = new Handler();
+    private final Runnable autoHideRunnable = this::hideFloatingButtons;
 
     private String appVersion;
 
@@ -162,7 +157,7 @@ public class MainActivity extends AppCompatActivity {
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             return pInfo.versionName;
         } catch (PackageManager.NameNotFoundException e) {
-            e.printStackTrace();
+            Log.e("MainActivity", "Exception", e);
             return "1.0.0";
         }
     }
@@ -220,7 +215,7 @@ public class MainActivity extends AppCompatActivity {
         floatingUploadButtons = findViewById(R.id.floating_upload_buttons);
         floatingSaveButtons = findViewById(R.id.floating_save_buttons);
 
-        LinearLayout container = (LinearLayout) findViewById(R.id.ll_update_container);
+        LinearLayout container = findViewById(R.id.ll_update_container);
         updateLogManager = new UpdateLogTableManager(this, container);
 
         // ==================== 新增：绑定面包屑导航视图 ====================
@@ -259,57 +254,31 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupTabs() {
-        btnTabRepo.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                selectTab(btnTabRepo);
-            }
+        btnTabRepo.setOnClickListener(v -> selectTab(btnTabRepo));
+        btnTabJson.setOnClickListener(v -> selectTab(btnTabJson));
+        btnTabUpdate.setOnClickListener(v -> selectTab(btnTabUpdate));
+
+        btnTabJson.setOnLongClickListener(v -> {
+            clearGeneratedJson();
+            return true;
         });
 
-        btnTabJson.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                selectTab(btnTabJson);
-            }
+        btnTabRepo.setOnLongClickListener(v -> {
+            fileEditorPanel.setVisibility(View.GONE);
+            allGithubFiles.clear();
+            githubFileList.clear();
+            adapter.notifyDataSetChanged();
+            currentPath = "";
+            fileListPanel.setVisibility(View.GONE);
+            etFileSearch.setVisibility(View.GONE);
+            updateBreadcrumb();
+            Toast.makeText(MainActivity.this, "已清除仓库文件，回到根目录", Toast.LENGTH_SHORT).show();
+            return true;
         });
 
-        btnTabUpdate.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                selectTab(btnTabUpdate);
-            }
-        });
-
-        btnTabJson.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                clearGeneratedJson();
-                return true;
-            }
-        });
-
-        btnTabRepo.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                fileEditorPanel.setVisibility(View.GONE);
-                allGithubFiles.clear();
-                githubFileList.clear();
-                adapter.notifyDataSetChanged();
-                currentPath = "";
-                fileListPanel.setVisibility(View.GONE);
-                etFileSearch.setVisibility(View.GONE);
-                updateBreadcrumb();
-                Toast.makeText(MainActivity.this, "已清除仓库文件，回到根目录", Toast.LENGTH_SHORT).show();
-                return true;
-            }
-        });
-
-        btnTabUpdate.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                clearUpdateContent();
-                return true;
-            }
+        btnTabUpdate.setOnLongClickListener(v -> {
+            clearUpdateContent();
+            return true;
         });
     }
 
@@ -340,235 +309,162 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setListener() {
-        btnBrowseFile.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.setType("*/*");
-                startActivityForResult(intent, REQUEST_SELECT_BASE_FILE);
-            }
+        btnBrowseFile.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("*/*");
+            startActivityForResult(intent, REQUEST_SELECT_BASE_FILE);
         });
 
-        btnBrowseToken.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.setType("text/plain");
-                startActivityForResult(intent, REQUEST_SELECT_TOKEN_FILE);
-            }
+        btnBrowseToken.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("text/plain");
+            startActivityForResult(intent, REQUEST_SELECT_TOKEN_FILE);
         });
 
-        btnQuery.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                closeFileEditor();
-                currentPath = "";
-                queryGithub("");
-            }
+        btnQuery.setOnClickListener(v -> {
+            closeFileEditor();
+            currentPath = "";
+            queryGithub("");
         });
 
         // ==================== 修改：文件夹点击进入子目录 ====================
-        lvGithubFiles.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                GitHubFile file = githubFileList.get(position);
-                if ("dir".equals(file.getType())) {
-                    navigateToFolder(file.getPath());
-                    return;
-                }
+        lvGithubFiles.setOnItemClickListener((parent, view, position, id) -> {
+            GitHubFile file = githubFileList.get(position);
+            if ("dir".equals(file.getType())) {
+                navigateToFolder(file.getPath());
+                return;
+            }
 
-                long now = System.currentTimeMillis();
-                if (position == lastClickPosition && now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
-                    // 双击文件 → 打开编辑
-                    openFileEditor(file);
+            long now = System.currentTimeMillis();
+            if (position == lastClickPosition && now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
+                openFileEditor(file);
+            } else {
+                lastClickTime = now;
+                lastClickPosition = position;
+                if (adapter.getSelectedPos() == position) {
+                    adapter.setSelectedPos(-1);
                 } else {
-                    // 单击 → 选中/取消
-                    lastClickTime = now;
-                    lastClickPosition = position;
-                    if (adapter.getSelectedPos() == position) {
-                        adapter.setSelectedPos(-1);
-                    } else {
-                        adapter.setSelectedPos(position);
-                    }
+                    adapter.setSelectedPos(position);
                 }
             }
         });
 
-        lvGithubFiles.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                GitHubFile file = githubFileList.get(position);
-                if ("file".equals(file.getType())) {
-                    confirmDeleteFile(file);
-                } else {
-                    Toast.makeText(MainActivity.this, "文件夹不支持删除", Toast.LENGTH_SHORT).show();
-                }
-                return true;
+        lvGithubFiles.setOnItemLongClickListener((parent, view, position, id) -> {
+            GitHubFile file = githubFileList.get(position);
+            if ("file".equals(file.getType())) {
+                confirmDeleteFile(file);
+            } else {
+                Toast.makeText(MainActivity.this, "文件夹不支持删除", Toast.LENGTH_SHORT).show();
             }
+            return true;
         });
 
         // ==================== 新增：返回上级目录按钮 ====================
-        btnBackFolder.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                navigateUp();
+        btnBackFolder.setOnClickListener(v -> navigateUp());
+
+        btnGenerate.setOnClickListener(v -> {
+            if (adapter == null || adapter.getSelectedPos() < 0) {
+                generateCdnRelease();
+                return;
+            }
+            showFloatingButtons("generate");
+        });
+
+        btnSave.setOnClickListener(v -> {
+            if (generatedJson == null || generatedJson.isEmpty()) {
+                Toast.makeText(MainActivity.this, "请先生成JSON后再保存", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            showFloatingButtons("save");
+        });
+
+        btnUpload.setOnClickListener(v -> {
+            if (generatedJson != null && !generatedJson.isEmpty()) {
+                uploadGeneratedJson();
+            } else {
+                showFloatingButtons("upload");
             }
         });
 
-        btnGenerate.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (adapter == null || adapter.getSelectedPos() < 0) {
-                    generateCdnRelease();
-                    return;
-                }
-                showFloatingButtons("generate");
-            }
+        findViewById(R.id.btn_floating_github_link).setOnClickListener(v -> {
+            hideFloatingButtons();
+            makeJsonWithLinkType(0);
         });
 
-        btnSave.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (generatedJson == null || generatedJson.isEmpty()) {
-                    Toast.makeText(MainActivity.this, "请先生成JSON后再保存", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                showFloatingButtons("save");
-            }
+        findViewById(R.id.btn_floating_web_link).setOnClickListener(v -> {
+            hideFloatingButtons();
+            makeJsonWithLinkType(1);
         });
 
-        btnUpload.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (generatedJson != null && !generatedJson.isEmpty()) {
-                    uploadGeneratedJson();
-                } else {
-                    showFloatingButtons("upload");
-                }
+        findViewById(R.id.btn_floating_upload_file).setOnClickListener(v -> {
+            hideFloatingButtons();
+            if (!checkTokenAndUrl()) {
+                return;
             }
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("*/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            startActivityForResult(intent, REQUEST_UPLOAD_FILE);
         });
 
-        findViewById(R.id.btn_floating_github_link).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideFloatingButtons();
-                makeJsonWithLinkType(0);
+        findViewById(R.id.btn_floating_upload_folder).setOnClickListener(v -> {
+            hideFloatingButtons();
+            if (!checkTokenAndUrl()) {
+                return;
             }
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            startActivityForResult(intent, REQUEST_UPLOAD_FOLDER);
         });
 
-        findViewById(R.id.btn_floating_web_link).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideFloatingButtons();
-                makeJsonWithLinkType(1);
-            }
+        findViewById(R.id.btn_floating_update_existing).setOnClickListener(v -> {
+            hideFloatingButtons();
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("application/json");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            startActivityForResult(intent, REQUEST_SAVE_JSON);
         });
 
-        findViewById(R.id.btn_floating_upload_file).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideFloatingButtons();
-                if (!checkTokenAndUrl()) {
-                    return;
-                }
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.setType("*/*");
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                startActivityForResult(intent, REQUEST_UPLOAD_FILE);
-            }
+        findViewById(R.id.btn_floating_new_file).setOnClickListener(v -> {
+            hideFloatingButtons();
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.setType("application/json");
+            intent.putExtra(Intent.EXTRA_TITLE, "update.json");
+            startActivityForResult(intent, REQUEST_SAVE_JSON);
         });
 
-        findViewById(R.id.btn_floating_upload_folder).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideFloatingButtons();
-                if (!checkTokenAndUrl()) {
-                    return;
-                }
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                startActivityForResult(intent, REQUEST_UPLOAD_FOLDER);
-            }
-        });
+        rootLayout.setOnClickListener(v -> hideFloatingButtons());
 
-        findViewById(R.id.btn_floating_update_existing).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideFloatingButtons();
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.setType("application/json");
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                startActivityForResult(intent, REQUEST_SAVE_JSON);
-            }
-        });
+        btnEditorSave.setOnClickListener(v -> {
+            if (editingFile == null) return;
+            final String newContent = etFileEditor.getText().toString();
+            Toast.makeText(MainActivity.this, "正在保存...", Toast.LENGTH_SHORT).show();
 
-        findViewById(R.id.btn_floating_new_file).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideFloatingButtons();
-                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.setType("application/json");
-                intent.putExtra(Intent.EXTRA_TITLE, "update.json");
-                startActivityForResult(intent, REQUEST_SAVE_JSON);
-            }
-        });
-
-        rootLayout.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideFloatingButtons();
-            }
-        });
-
-        btnEditorSave.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (editingFile == null) return;
-                final String newContent = etFileEditor.getText().toString();
-                Toast.makeText(MainActivity.this, "正在保存...", Toast.LENGTH_SHORT).show();
-
-                new Thread(new Runnable() {
+            new Thread(() -> {
+                githubUploader.uploadFileSync2(token, editingOwner, editingRepo,
+                        editingFile.getPath(), newContent.getBytes(),
+                        "编辑文件: " + editingFile.getName(),
+                        new GitHubUploader.UploadCallback() {
                     @Override
-                    public void run() {
-                        githubUploader.uploadFileSync2(token, editingOwner, editingRepo,
-                                editingFile.getPath(), newContent.getBytes(),
-                                "编辑文件: " + editingFile.getName(),
-                                new GitHubUploader.UploadCallback() {
-                            @Override
-                            public void onSuccess(String message) {
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
-                                        closeFileEditor();
-                                    }
-                                });
-                            }
-
-                            @Override
-                            public void onFailure(final String error) {
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
-                                    }
-                                });
-                            }
-
-                            @Override
-                            public void onProgress(String status) {}
+                    public void onSuccess(String message) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                            closeFileEditor();
                         });
                     }
-                }).start();
-            }
+
+                    @Override
+                    public void onFailure(final String error) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show());
+                    }
+
+                    @Override
+                    public void onProgress(String status) {}
+                });
+            }).start();
         });
 
-        btnEditorCancel.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                closeFileEditor();
-            }
-        });
+        btnEditorCancel.setOnClickListener(v -> closeFileEditor());
 
         etFileSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -579,12 +475,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        etGithubUrl.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (!hasFocus) {
-                    saveData();
-                }
+        etGithubUrl.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus) {
+                saveData();
             }
         });
     }
@@ -694,12 +587,7 @@ public class MainActivity extends AppCompatActivity {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, final IOException e) {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(MainActivity.this, "请求失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "请求失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
 
             @Override
@@ -707,14 +595,8 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     final String body = response.body().string();
 
-                    // 如果返回的是单个对象（非数组），说明 path 指向的是文件而非目录
                     if (body.trim().startsWith("{")) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(MainActivity.this, "该路径是文件，不是文件夹", Toast.LENGTH_SHORT).show();
-                            }
-                        });
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "该路径是文件，不是文件夹", Toast.LENGTH_SHORT).show());
                         return;
                     }
 
@@ -736,42 +618,31 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
 
-                    java.util.Collections.sort(tempList, new java.util.Comparator<GitHubFile>() {
-                        @Override
-                        public int compare(GitHubFile a, GitHubFile b) {
-                            boolean aIsDir = "dir".equals(a.getType());
-                            boolean bIsDir = "dir".equals(b.getType());
-                            if (aIsDir && !bIsDir) return -1;
-                            if (!aIsDir && bIsDir) return 1;
-                            return a.getName().compareToIgnoreCase(b.getName());
-                        }
+                    java.util.Collections.sort(tempList, (a, b) -> {
+                        boolean aIsDir = "dir".equals(a.getType());
+                        boolean bIsDir = "dir".equals(b.getType());
+                        if (aIsDir && !bIsDir) return -1;
+                        if (!aIsDir && bIsDir) return 1;
+                        return a.getName().compareToIgnoreCase(b.getName());
                     });
 
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            allGithubFiles.clear();
-                            allGithubFiles.addAll(tempList);
-                            githubFileList.clear();
-                            githubFileList.addAll(tempList);
-                            adapter.setSelectedPos(-1);
-                            adapter.notifyDataSetChanged();
-                            etFileSearch.setText("");
-                            etFileSearch.setVisibility(tempList.isEmpty() ? View.GONE : View.VISIBLE);
-                            fileListPanel.setVisibility(View.VISIBLE);
-                            updateBreadcrumb();
-                            String pathInfo = currentPath.isEmpty() ? "根目录" : currentPath;
-                            Toast.makeText(MainActivity.this, "加载完成: " + tempList.size() + " 个条目 (" + pathInfo + ")", Toast.LENGTH_SHORT).show();
-                        }
+                    runOnUiThread(() -> {
+                        allGithubFiles.clear();
+                        allGithubFiles.addAll(tempList);
+                        githubFileList.clear();
+                        githubFileList.addAll(tempList);
+                        adapter.setSelectedPos(-1);
+                        adapter.notifyDataSetChanged();
+                        etFileSearch.setText("");
+                        etFileSearch.setVisibility(tempList.isEmpty() ? View.GONE : View.VISIBLE);
+                        fileListPanel.setVisibility(View.VISIBLE);
+                        updateBreadcrumb();
+                        String pathInfo = currentPath.isEmpty() ? "根目录" : currentPath;
+                        Toast.makeText(MainActivity.this, "加载完成: " + tempList.size() + " 个条目 (" + pathInfo + ")", Toast.LENGTH_SHORT).show();
                     });
                 } catch (Exception e) {
                     final String errorMsg = e.getMessage();
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(MainActivity.this, "解析错误: " + errorMsg, Toast.LENGTH_SHORT).show();
-                        }
-                    });
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "解析错误: " + errorMsg, Toast.LENGTH_SHORT).show());
                 }
             }
         });
@@ -786,25 +657,19 @@ public class MainActivity extends AppCompatActivity {
 
         Toast.makeText(this, "正在加载文件...", Toast.LENGTH_SHORT).show();
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                final String content = githubUploader.getFileContent(token, editingOwner, editingRepo, file.getPath());
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (content == null) {
-                            Toast.makeText(MainActivity.this, "加载文件失败", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                        etFileEditor.setText(content);
-                        etFileEditor.setSelection(content.length());
-                        fileListPanel.setVisibility(View.GONE);
-                        fileEditorPanel.setVisibility(View.VISIBLE);
-                        breadcrumbBar.setVisibility(View.GONE);
-                    }
-                });
-            }
+        new Thread(() -> {
+            final String content = githubUploader.getFileContent(token, editingOwner, editingRepo, file.getPath());
+            runOnUiThread(() -> {
+                if (content == null) {
+                    Toast.makeText(MainActivity.this, "加载文件失败", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                etFileEditor.setText(content);
+                etFileEditor.setSelection(content.length());
+                fileListPanel.setVisibility(View.GONE);
+                fileEditorPanel.setVisibility(View.VISIBLE);
+                breadcrumbBar.setVisibility(View.GONE);
+            });
         }).start();
     }
 
@@ -821,17 +686,13 @@ public class MainActivity extends AppCompatActivity {
             githubFileList.addAll(allGithubFiles);
         } else {
             for (GitHubFile f : allGithubFiles) {
-                if (f.getName().toLowerCase().contains(query.toLowerCase())) {
+                if (f.getName().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))) {
                     githubFileList.add(f);
                 }
             }
         }
         adapter.setSelectedPos(-1);
         adapter.notifyDataSetChanged();
-    }
-
-    private void makeJson() {
-        makeJsonWithLinkType(-1);
     }
 
     private void makeJsonWithLinkType(final int linkType) {
@@ -933,48 +794,45 @@ public class MainActivity extends AppCompatActivity {
                 AlertDialog.Builder builder = new AlertDialog.Builder(this);
                 builder.setTitle("选择下载链接类型");
                 final String[] options = {"使用原始GitHub链接", "使用网页版自定义链接", "取消"};
-                builder.setItems(options, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (which == 2) {
-                            dialog.dismiss();
-                            return;
-                        }
+                builder.setItems(options, (dialog, which) -> {
+                    if (which == 2) {
+                        dialog.dismiss();
+                        return;
+                    }
 
-                        if (which == 0) {
-                            String downloadUrl = selectedFile.getDownloadUrl();
+                    if (which == 0) {
+                        String downloadUrl = selectedFile.getDownloadUrl();
 
-                            String json = JsonGenerator.generateJson(
-                                    downloadUrl,
-                                    finalFileName,
-                                    finalFileSize,
-                                    finalMd5,
-                                    finalSha256,
-                                    finalApkVersion,
-                                    finalUpdateLog,
-                                    finalGithubUrl,
-                                    appVersion
-                            );
+                        String json = JsonGenerator.generateJson(
+                                downloadUrl,
+                                finalFileName,
+                                finalFileSize,
+                                finalMd5,
+                                finalSha256,
+                                finalApkVersion,
+                                finalUpdateLog,
+                                finalGithubUrl,
+                                appVersion
+                        );
 
-                            etJsonPreview.removeTextChangedListener(jsonTextWatcher);
-                            etJsonPreview.setText(json);
-                            etJsonPreview.addTextChangedListener(jsonTextWatcher);
-                            generatedJson = json;
+                        etJsonPreview.removeTextChangedListener(jsonTextWatcher);
+                        etJsonPreview.setText(json);
+                        etJsonPreview.addTextChangedListener(jsonTextWatcher);
+                        generatedJson = json;
 
-                            selectTab(btnTabJson);
-                            Toast.makeText(MainActivity.this, "JSON生成成功，版本: " + finalApkVersion, Toast.LENGTH_SHORT).show();
-                        } else {
-                            showWebUrlInputDialog(
-                                    finalFileName,
-                                    finalFileSize,
-                                    finalMd5,
-                                    finalSha256,
-                                    finalApkVersion,
-                                    finalUpdateLog,
-                                    finalGithubUrl,
-                                    selectedFile
-                            );
-                        }
+                        selectTab(btnTabJson);
+                        Toast.makeText(MainActivity.this, "JSON生成成功，版本: " + finalApkVersion, Toast.LENGTH_SHORT).show();
+                    } else {
+                        showWebUrlInputDialog(
+                                finalFileName,
+                                finalFileSize,
+                                finalMd5,
+                                finalSha256,
+                                finalApkVersion,
+                                finalUpdateLog,
+                                finalGithubUrl,
+                                selectedFile
+                        );
                     }
                 });
                 builder.setCancelable(true);
@@ -982,8 +840,8 @@ public class MainActivity extends AppCompatActivity {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(this, "生成失败: " + e.toString(), Toast.LENGTH_LONG).show();
+            Log.e("MainActivity", "Exception", e);
+            Toast.makeText(this, "生成失败: " + e, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -1056,8 +914,8 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "CDN发布JSON生成成功，版本: " + apkVersion, Toast.LENGTH_SHORT).show();
 
         } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(this, "生成失败: " + e.toString(), Toast.LENGTH_LONG).show();
+            Log.e("MainActivity", "Exception", e);
+            Toast.makeText(this, "生成失败: " + e, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -1084,23 +942,17 @@ public class MainActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("保存JSON");
         builder.setMessage("请选择保存方式：");
-        builder.setPositiveButton("更新已有文件", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.setType("application/json");
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                startActivityForResult(intent, REQUEST_SAVE_JSON);
-            }
+        builder.setPositiveButton("更新已有文件", (dialog, which) -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("application/json");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            startActivityForResult(intent, REQUEST_SAVE_JSON);
         });
-        builder.setNegativeButton("新建文件", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.setType("application/json");
-                intent.putExtra(Intent.EXTRA_TITLE, "update.json");
-                startActivityForResult(intent, REQUEST_SAVE_JSON);
-            }
+        builder.setNegativeButton("新建文件", (dialog, which) -> {
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.setType("application/json");
+            intent.putExtra(Intent.EXTRA_TITLE, "update.json");
+            startActivityForResult(intent, REQUEST_SAVE_JSON);
         });
         builder.setNeutralButton("取消", null);
         builder.show();
@@ -1119,7 +971,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void clearUpdateContent() {
-        updateLogManager.initTable(new ArrayList<String>());
+        updateLogManager.initTable(new ArrayList<>());
         for (int i = 0; i < 10; i++) {
             updateLogManager.addRow("");
         }
@@ -1145,48 +997,40 @@ public class MainActivity extends AppCompatActivity {
 
         builder.setView(layout);
 
-        builder.setPositiveButton("确认", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                String baseUrl = input.getText().toString().trim();
-                if (baseUrl.isEmpty()) {
-                    Toast.makeText(MainActivity.this, "地址不能为空", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                baseUrl = ensureUrlFormat(baseUrl);
-                saveWebUrl(baseUrl);
-
-                String downloadUrl = buildDownloadUrl(baseUrl, apkVersion);
-
-                String json = JsonGenerator.generateJson(
-                        downloadUrl,
-                        fileName,
-                        fileSize,
-                        md5,
-                        sha256,
-                        apkVersion,
-                        updateLog,
-                        githubUrl,
-                        appVersion
-                );
-
-                etJsonPreview.removeTextChangedListener(jsonTextWatcher);
-                etJsonPreview.setText(json);
-                etJsonPreview.addTextChangedListener(jsonTextWatcher);
-                generatedJson = json;
-
-                selectTab(btnTabJson);
-                Toast.makeText(MainActivity.this, "JSON生成成功，版本: " + apkVersion, Toast.LENGTH_SHORT).show();
+        builder.setPositiveButton("确认", (dialog, which) -> {
+            String baseUrl = input.getText().toString().trim();
+            if (baseUrl.isEmpty()) {
+                Toast.makeText(MainActivity.this, "地址不能为空", Toast.LENGTH_SHORT).show();
+                return;
             }
+
+            baseUrl = ensureUrlFormat(baseUrl);
+            saveWebUrl(baseUrl);
+
+            String downloadUrl = buildDownloadUrl(baseUrl, apkVersion);
+
+            String json = JsonGenerator.generateJson(
+                    downloadUrl,
+                    fileName,
+                    fileSize,
+                    md5,
+                    sha256,
+                    apkVersion,
+                    updateLog,
+                    githubUrl,
+                    appVersion
+            );
+
+            etJsonPreview.removeTextChangedListener(jsonTextWatcher);
+            etJsonPreview.setText(json);
+            etJsonPreview.addTextChangedListener(jsonTextWatcher);
+            generatedJson = json;
+
+            selectTab(btnTabJson);
+            Toast.makeText(MainActivity.this, "JSON生成成功，版本: " + apkVersion, Toast.LENGTH_SHORT).show();
         });
 
-        builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-            }
-        });
+        builder.setNegativeButton("取消", (dialog, which) -> dialog.dismiss());
 
         builder.show();
     }
@@ -1195,24 +1039,9 @@ public class MainActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("文件已存在");
         builder.setMessage("文件 \"" + targetFileName + "\" 已存在。是否覆盖？");
-        builder.setPositiveButton("覆盖", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                saveJsonToUri(targetUri, true);
-            }
-        });
-        builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Toast.makeText(MainActivity.this, "已取消保存", Toast.LENGTH_SHORT).show();
-            }
-        });
-        builder.setNeutralButton("另存为", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                saveJson();
-            }
-        });
+        builder.setPositiveButton("覆盖", (dialog, which) -> saveJsonToUri(targetUri, true));
+        builder.setNegativeButton("取消", (dialog, which) -> Toast.makeText(MainActivity.this, "已取消保存", Toast.LENGTH_SHORT).show());
+        builder.setNeutralButton("另存为", (dialog, which) -> saveJson());
         builder.show();
     }
 
@@ -1224,13 +1053,13 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "无法打开输出流", Toast.LENGTH_SHORT).show();
                 return;
             }
-            os.write(generatedJson.getBytes("UTF-8"));
+            os.write(generatedJson.getBytes(StandardCharsets.UTF_8.name()));
             os.flush();
             String fileName = FileHelper.getFileNameFromUri(getContentResolver(), uri);
             Toast.makeText(this, "JSON已保存: " + fileName, Toast.LENGTH_LONG).show();
         } catch (IOException e) {
             Toast.makeText(this, "保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            e.printStackTrace();
+            Log.e("MainActivity", "Exception", e);
         } finally {
             if (os != null) {
                 try { os.close(); } catch (IOException ignored) {}
@@ -1300,60 +1129,47 @@ public class MainActivity extends AppCompatActivity {
 
         Toast.makeText(this, "正在上传JSON到GitHub..." + (currentPath.isEmpty() ? "" : " (目录: " + currentPath + ")"), Toast.LENGTH_SHORT).show();
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    String base64Content = Base64.encodeToString(generatedJson.getBytes("UTF-8"), Base64.NO_WRAP);
-                    String apiUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/contents/" + filePath;
+        new Thread(() -> {
+            try {
+                String base64Content = Base64.encodeToString(generatedJson.getBytes(StandardCharsets.UTF_8.name()), Base64.NO_WRAP);
+                String apiUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/contents/" + filePath;
 
-                    String sha = null;
-                    Request getRequest = new Request.Builder().url(apiUrl).header("Authorization", "token " + token).get().build();
-                    Response getResponse = client.newCall(getRequest).execute();
-                    if (getResponse.isSuccessful()) {
-                        String getBody = getResponse.body().string();
-                        JSONObject fileInfo = new JSONObject(getBody);
-                        sha = fileInfo.getString("sha");
-                    }
-
-                    JSONObject requestBody = new JSONObject();
-                    requestBody.put("message", commitMessage);
-                    requestBody.put("content", base64Content);
-                    if (sha != null) requestBody.put("sha", sha);
-
-                    Request putRequest = new Request.Builder()
-                            .url(apiUrl)
-                            .header("Authorization", "token " + token)
-                            .header("Content-Type", "application/json")
-                            .put(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), requestBody.toString()))
-                            .build();
-
-                    Response putResponse = client.newCall(putRequest).execute();
-                    final boolean success = putResponse.isSuccessful();
-                    final String message;
-                    if (success) {
-                        message = "JSON上传成功！";
-                    } else {
-                        String errorBody = putResponse.body().string();
-                        message = "JSON上传失败: " + putResponse.code() + " - " + errorBody;
-                    }
-
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-                        }
-                    });
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    final String errorMsg = e.getMessage();
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(MainActivity.this, "上传异常: " + errorMsg, Toast.LENGTH_SHORT).show();
-                        }
-                    });
+                String sha = null;
+                Request getRequest = new Request.Builder().url(apiUrl).header("Authorization", "token " + token).get().build();
+                Response getResponse = client.newCall(getRequest).execute();
+                if (getResponse.isSuccessful()) {
+                    String getBody = getResponse.body().string();
+                    JSONObject fileInfo = new JSONObject(getBody);
+                    sha = fileInfo.getString("sha");
                 }
+
+                JSONObject requestBody = new JSONObject();
+                requestBody.put("message", commitMessage);
+                requestBody.put("content", base64Content);
+                if (sha != null) requestBody.put("sha", sha);
+
+                Request putRequest = new Request.Builder()
+                        .url(apiUrl)
+                        .header("Authorization", "token " + token)
+                        .header("Content-Type", "application/json")
+                        .put(RequestBody.create(MediaType.get("application/json; charset=utf-8"), requestBody.toString()))
+                        .build();
+
+                Response putResponse = client.newCall(putRequest).execute();
+                final boolean success = putResponse.isSuccessful();
+                final String message;
+                if (success) {
+                    message = "JSON上传成功！";
+                } else {
+                    String errorBody = putResponse.body().string();
+                    message = "JSON上传失败: " + putResponse.code() + " - " + errorBody;
+                }
+
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show());
+            } catch (Exception e) {
+                Log.e("MainActivity", "Exception", e);
+                final String errorMsg = e.getMessage();
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "上传异常: " + errorMsg, Toast.LENGTH_SHORT).show());
             }
         }).start();
     }
@@ -1380,68 +1196,40 @@ public class MainActivity extends AppCompatActivity {
 
         Toast.makeText(this, "开始上传文件: " + fileName + (currentPath.isEmpty() ? "" : " → " + currentPath), Toast.LENGTH_SHORT).show();
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                InputStream is = null;
-                try {
-                    is = getContentResolver().openInputStream(fileUri);
-                    if (is == null) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(MainActivity.this, "无法打开文件", Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                        return;
+        new Thread(() -> {
+            InputStream is = null;
+            try {
+                is = getContentResolver().openInputStream(fileUri);
+                if (is == null) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "无法打开文件", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+                final byte[] content = FileHelper.readAllBytes(is);
+                is.close();
+
+                GitHubUploader uploader = new GitHubUploader();
+                uploader.uploadFile(token, owner, repo, remotePath, content, "通过JSON生成器上传文件", new GitHubUploader.UploadCallback() {
+                    @Override
+                    public void onSuccess(final String message) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show());
                     }
-                    final byte[] content = FileHelper.readAllBytes(is);
-                    is.close();
 
-                    GitHubUploader uploader = new GitHubUploader();
-                    uploader.uploadFile(token, owner, repo, remotePath, content, "通过JSON生成器上传文件", new GitHubUploader.UploadCallback() {
-                        @Override
-                        public void onSuccess(final String message) {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-                                }
-                            });
-                        }
-
-                        @Override
-                        public void onFailure(final String error) {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
-                                }
-                            });
-                        }
-
-                        @Override
-                        public void onProgress(final String status) {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(MainActivity.this, status, Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                        }
-                    });
-                } catch (final Exception e) {
-                    e.printStackTrace();
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(MainActivity.this, "读取文件失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                } finally {
-                    if (is != null) {
-                        try { is.close(); } catch (IOException ignored) {}
+                    @Override
+                    public void onFailure(final String error) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show());
                     }
+
+                    @Override
+                    public void onProgress(final String status) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, status, Toast.LENGTH_SHORT).show());
+                    }
+                });
+            } catch (final Exception e) {
+                Log.e("MainActivity", "Exception", e);
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "读取文件失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            } finally {
+                if (is != null) {
+                    try { is.close(); } catch (IOException ignored) {}
                 }
             }
         }).start();
@@ -1458,47 +1246,28 @@ public class MainActivity extends AppCompatActivity {
         final String owner = ownerRepo[0];
         final String repo = ownerRepo[1];
 
-        // ==================== 修改：上传到当前浏览的目录 ====================
         final String remoteBasePath = currentPath;
 
         Toast.makeText(this, "开始上传文件夹..." + (currentPath.isEmpty() ? "" : " → " + currentPath), Toast.LENGTH_SHORT).show();
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                GitHubUploader uploader = new GitHubUploader();
-                uploader.uploadFolder(MainActivity.this, token, owner, repo, folderUri, remoteBasePath, "通过JSON生成器上传文件夹", new GitHubUploader.UploadCallback() {
-                    @Override
-                    public void onSuccess(final String message) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-                            }
-                        });
-                    }
+        new Thread(() -> {
+            GitHubUploader uploader = new GitHubUploader();
+            uploader.uploadFolder(MainActivity.this, token, owner, repo, folderUri, remoteBasePath, "通过JSON生成器上传文件夹", new GitHubUploader.UploadCallback() {
+                @Override
+                public void onSuccess(final String message) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show());
+                }
 
-                    @Override
-                    public void onFailure(final String error) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
-                            }
-                        });
-                    }
+                @Override
+                public void onFailure(final String error) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show());
+                }
 
-                    @Override
-                    public void onProgress(final String status) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(MainActivity.this, status, Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    }
-                });
-            }
+                @Override
+                public void onProgress(final String status) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, status, Toast.LENGTH_SHORT).show());
+                }
+            });
         }).start();
     }
 
@@ -1506,12 +1275,7 @@ public class MainActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
             .setTitle("删除文件")
             .setMessage("确定要删除 " + file.getName() + " 吗？\n此操作会直接提交到 GitHub。")
-            .setPositiveButton("删除", new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    deleteFileFromGithub(file);
-                }
-            })
+            .setPositiveButton("删除", (dialog, which) -> deleteFileFromGithub(file))
             .setNegativeButton("取消", null)
             .show();
     }
@@ -1538,23 +1302,15 @@ public class MainActivity extends AppCompatActivity {
             new GitHubUploader.UploadCallback() {
                 @Override
                 public void onSuccess(String message) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
-                            queryGithub(currentPath);
-                        }
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                        queryGithub(currentPath);
                     });
                 }
 
                 @Override
                 public void onFailure(final String error) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
-                        }
-                    });
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show());
                 }
 
                 @Override
@@ -1607,7 +1363,9 @@ public class MainActivity extends AppCompatActivity {
                     InputStream is = getContentResolver().openInputStream(baseFileUri);
                     if (is != null) {
                         File internalDir = new File(getFilesDir(), "base_apk");
-                        if (!internalDir.exists()) internalDir.mkdirs();
+                        if (!internalDir.exists() && !internalDir.mkdirs()) {
+                    Log.e("MainActivity", "Failed to create directory: " + internalDir.getAbsolutePath());
+                }
                         File internalFile = new File(internalDir, baseFileName);
                         FileOutputStream fos = new FileOutputStream(internalFile);
                         byte[] buffer = new byte[8192];
@@ -1621,7 +1379,7 @@ public class MainActivity extends AppCompatActivity {
                         dataHelper.saveBaseFilePath(baseFileInternalPath, baseFileName);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    Log.e("MainActivity", "Exception", e);
                 }
             }
         } else if (requestCode == REQUEST_SELECT_TOKEN_FILE) {
