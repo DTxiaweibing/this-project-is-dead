@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -40,6 +41,7 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.security.MessageDigest;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -756,6 +758,7 @@ public class MainActivity extends AppCompatActivity {
             final String finalApkVersion = apkVersion;
             final String finalUpdateLog = updateLog;
             final String finalGithubUrl = etGithubUrl.getText().toString();
+            final String finalFingerprint = getSigningFingerprint();
 
             if (linkType == 0) {
                 String downloadUrl = selectedFile.getDownloadUrl();
@@ -769,7 +772,8 @@ public class MainActivity extends AppCompatActivity {
                         finalApkVersion,
                         finalUpdateLog,
                         finalGithubUrl,
-                        appVersion
+                        appVersion,
+                        finalFingerprint
                 );
 
                 etJsonPreview.removeTextChangedListener(jsonTextWatcher);
@@ -812,7 +816,8 @@ public class MainActivity extends AppCompatActivity {
                                 finalApkVersion,
                                 finalUpdateLog,
                                 finalGithubUrl,
-                                appVersion
+                                appVersion,
+                                finalFingerprint
                         );
 
                         etJsonPreview.removeTextChangedListener(jsonTextWatcher);
@@ -900,9 +905,10 @@ public class MainActivity extends AppCompatActivity {
             String repoUrl = githubUrl.replaceAll("/$", "");
             String downloadUrl = "https://gh-proxy.com/" + repoUrl + "/releases/latest/download/" + fileName;
 
+            String fingerprint = getSigningFingerprint();
             String json = JsonGenerator.generateJson(
                     downloadUrl, fileName, fileSize, md5, sha256,
-                    apkVersion, updateLog, githubUrl, appVersion
+                    apkVersion, updateLog, githubUrl, appVersion, fingerprint
             );
 
             etJsonPreview.removeTextChangedListener(jsonTextWatcher);
@@ -932,6 +938,26 @@ public class MainActivity extends AppCompatActivity {
                 try { is.close(); } catch (IOException ignored) {}
             }
         }
+    }
+
+    private String getSigningFingerprint() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), PackageManager.GET_SIGNATURES);
+            if (info.signatures != null && info.signatures.length > 0) {
+                Signature sig = info.signatures[0];
+                MessageDigest md = MessageDigest.getInstance("SHA-256");
+                byte[] digest = md.digest(sig.toByteArray());
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < digest.length; i++) {
+                    if (i > 0) sb.append(":");
+                    sb.append(String.format("%02x", digest[i]));
+                }
+                return sb.toString();
+            }
+        } catch (Exception e) {
+            Log.e("MainActivity", "获取签名指纹失败", e);
+        }
+        return null;
     }
 
     private void saveJson() {
@@ -1009,6 +1035,7 @@ public class MainActivity extends AppCompatActivity {
 
             String downloadUrl = buildDownloadUrl(baseUrl, apkVersion);
 
+            String fingerprint = getSigningFingerprint();
             String json = JsonGenerator.generateJson(
                     downloadUrl,
                     fileName,
@@ -1018,7 +1045,8 @@ public class MainActivity extends AppCompatActivity {
                     apkVersion,
                     updateLog,
                     githubUrl,
-                    appVersion
+                    appVersion,
+                    fingerprint
             );
 
             etJsonPreview.removeTextChangedListener(jsonTextWatcher);

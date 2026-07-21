@@ -75,7 +75,7 @@ public class GitHubFileListAdapter extends BaseAdapter {
             layout.addView(ivIcon, iconParams);
 
             TextView tvName = new TextView(context);
-            tvName.setTextSize(14);
+            tvName.setTextSize(16);
             tvName.setSingleLine(true);
             tvName.setGravity(Gravity.CENTER_VERTICAL);
             LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(

@@ -52,7 +52,7 @@ public class UpdateLogTableManager {
                                      dpToPx(rowHeightDp)
                                  ));
         editText.setText(text);
-        editText.setTextSize(13);
+        editText.setTextSize(15);
         editText.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
         editText.setBackgroundResource(R.drawable.edittext_cell_bg);
         editText.setSingleLine(true);

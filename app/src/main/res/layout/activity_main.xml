@@ -265,7 +265,7 @@
                     android:id="@+id/et_json_preview"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textSize="14sp"
+                    android:textSize="16sp"
                     android:textColor="#008800"
                     android:typeface="monospace"
                     android:background="@null"
