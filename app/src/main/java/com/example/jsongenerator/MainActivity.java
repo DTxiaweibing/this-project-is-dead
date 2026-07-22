@@ -68,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_SAVE_JSON = 1004;
     private static final int REQUEST_UPLOAD_FILE = 2001;
     private static final int REQUEST_UPLOAD_FOLDER = 2002;
+    private static final int REQUEST_RELEASE_ASSETS = 3001;
 
     private static final String PREFS_NAME = "WebUrlPrefs";
     private static final String KEY_WEB_BASE_URL = "web_base_url";
@@ -95,6 +96,10 @@ public class MainActivity extends AppCompatActivity {
     private String generatedJson;
     private final OkHttpClient client = new OkHttpClient();
     private final GitHubUploader githubUploader = new GitHubUploader();
+    private String pendingTagName;
+    private String pendingReleaseBody;
+    private String pendingTargetBranch;
+    private final List<Uri> pendingAssetUris = new ArrayList<>();
     private DataPersistenceHelper dataHelper;
     private TextWatcher jsonTextWatcher;
 
@@ -113,6 +118,7 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout fileEditorPanel, fileListPanel;
     private EditText etFileEditor, etFileSearch;
     private Button btnEditorSave, btnEditorCancel;
+    private Button btnNewFile, btnRelease;
     private GitHubFile editingFile;
     private String editingOwner, editingRepo;
 
@@ -243,6 +249,8 @@ public class MainActivity extends AppCompatActivity {
         btnEditorCancel = findViewById(R.id.btn_editor_cancel);
         fileListPanel = findViewById(R.id.file_list_panel);
         etFileSearch = findViewById(R.id.et_file_search);
+        btnNewFile = findViewById(R.id.btn_new_file);
+        btnRelease = findViewById(R.id.btn_release);
     }
 
     private void requestPermission() {
@@ -273,6 +281,8 @@ public class MainActivity extends AppCompatActivity {
             currentPath = "";
             fileListPanel.setVisibility(View.GONE);
             etFileSearch.setVisibility(View.GONE);
+            btnNewFile.setVisibility(View.GONE);
+            btnRelease.setVisibility(View.GONE);
             updateBreadcrumb();
             Toast.makeText(MainActivity.this, "已清除仓库文件，回到根目录", Toast.LENGTH_SHORT).show();
             return true;
@@ -477,6 +487,10 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        btnNewFile.setOnClickListener(v -> showNewFileMenu());
+
+        btnRelease.setOnClickListener(v -> fetchReleases());
+
         etGithubUrl.setOnFocusChangeListener((v, hasFocus) -> {
             if (!hasFocus) {
                 saveData();
@@ -636,7 +650,10 @@ public class MainActivity extends AppCompatActivity {
                         adapter.setSelectedPos(-1);
                         adapter.notifyDataSetChanged();
                         etFileSearch.setText("");
-                        etFileSearch.setVisibility(tempList.isEmpty() ? View.GONE : View.VISIBLE);
+                        boolean hasItems = !tempList.isEmpty();
+                        etFileSearch.setVisibility(hasItems ? View.VISIBLE : View.GONE);
+                        btnNewFile.setVisibility(hasItems ? View.VISIBLE : View.GONE);
+                        btnRelease.setVisibility(hasItems ? View.VISIBLE : View.GONE);
                         fileListPanel.setVisibility(View.VISIBLE);
                         updateBreadcrumb();
                         String pathInfo = currentPath.isEmpty() ? "根目录" : currentPath;
@@ -695,6 +712,294 @@ public class MainActivity extends AppCompatActivity {
         }
         adapter.setSelectedPos(-1);
         adapter.notifyDataSetChanged();
+    }
+
+    private void showNewFileMenu() {
+        String[] options = {"新建文件", "新建文件夹"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("新建");
+        builder.setItems(options, (dialog, which) -> {
+            if (which == 0) {
+                showNewFileDialog();
+            } else {
+                showNewFolderDialog();
+            }
+        });
+        builder.show();
+    }
+
+    private void showNewFileDialog() {
+        if (!checkTokenAndUrl()) return;
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 30);
+
+        final EditText etName = new EditText(this);
+        etName.setHint("文件名（如 test.txt）");
+        layout.addView(etName);
+
+        final EditText etContent = new EditText(this);
+        etContent.setHint("文件内容");
+        etContent.setMinLines(5);
+        etContent.setGravity(android.view.Gravity.TOP);
+        layout.addView(etContent);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("新建文件");
+        builder.setView(layout);
+        builder.setPositiveButton("创建", (dialog, which) -> {
+            String name = etName.getText().toString().trim();
+            String content = etContent.getText().toString();
+            if (name.isEmpty()) {
+                Toast.makeText(MainActivity.this, "文件名不能为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!checkTokenAndUrl()) return;
+            String[] ownerRepo = resolveOwnerRepo();
+            if (ownerRepo == null) return;
+            String remotePath = currentPath.isEmpty() ? name : currentPath + "/" + name;
+            Toast.makeText(MainActivity.this, "正在创建文件...", Toast.LENGTH_SHORT).show();
+            new Thread(() -> {
+                githubUploader.uploadFileSync2(token, ownerRepo[0], ownerRepo[1],
+                        remotePath, content.getBytes(),
+                        "新建文件: " + name,
+                        new GitHubUploader.UploadCallback() {
+                    @Override
+                    public void onSuccess(String message) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                            queryGithub(currentPath);
+                        });
+                    }
+                    @Override
+                    public void onFailure(String error) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show());
+                    }
+                    @Override
+                    public void onProgress(String status) {}
+                });
+            });
+        });
+        builder.show();
+    }
+
+    private void showNewFolderDialog() {
+        if (!checkTokenAndUrl()) return;
+        final EditText etName = new EditText(this);
+        etName.setHint("文件夹名称");
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("新建文件夹");
+        builder.setView(etName);
+        builder.setPositiveButton("创建", (dialog, which) -> {
+            String name = etName.getText().toString().trim();
+            if (name.isEmpty()) {
+                Toast.makeText(MainActivity.this, "文件夹名称不能为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String[] ownerRepo = resolveOwnerRepo();
+            if (ownerRepo == null) return;
+            String remotePath = currentPath.isEmpty() ? name + "/.gitkeep" : currentPath + "/" + name + "/.gitkeep";
+            Toast.makeText(MainActivity.this, "正在创建文件夹...", Toast.LENGTH_SHORT).show();
+            new Thread(() -> {
+                githubUploader.uploadFileSync2(token, ownerRepo[0], ownerRepo[1],
+                        remotePath, "".getBytes(),
+                        "新建文件夹: " + name,
+                        new GitHubUploader.UploadCallback() {
+                    @Override
+                    public void onSuccess(String message) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, "文件夹创建成功: " + name, Toast.LENGTH_SHORT).show();
+                            queryGithub(currentPath);
+                        });
+                    }
+                    @Override
+                    public void onFailure(String error) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show());
+                    }
+                    @Override
+                    public void onProgress(String status) {}
+                });
+            });
+        });
+        builder.show();
+    }
+
+    private void fetchReleases() {
+        if (!checkTokenAndUrl()) return;
+        final String[] ownerRepo = resolveOwnerRepo();
+        if (ownerRepo == null) return;
+        final String owner = ownerRepo[0];
+        final String repo = ownerRepo[1];
+
+        String apiUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/releases?per_page=30";
+        Request request = new Request.Builder()
+                .url(apiUrl)
+                .header("Authorization", "token " + token)
+                .build();
+
+        Toast.makeText(this, "正在获取Release列表...", Toast.LENGTH_SHORT).show();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "获取Release失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    final String body = response.body().string();
+                    if (!response.isSuccessful()) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "获取Release失败: HTTP " + response.code(), Toast.LENGTH_SHORT).show());
+                        return;
+                    }
+                    final JSONArray releases = new JSONArray(body);
+                    final int count = releases.length();
+                    final String[] items = new String[count + 1];
+                    final long[] releaseIds = new long[count];
+                    for (int i = 0; i < count; i++) {
+                        JSONObject r = releases.getJSONObject(i);
+                        items[i] = r.getString("tag_name");
+                        releaseIds[i] = r.getLong("id");
+                    }
+                    items[count] = "＋ 发布新Release";
+
+                    runOnUiThread(() -> {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                        builder.setTitle("Release管理器");
+                        builder.setItems(items, (dialog, which) -> {
+                            if (which == count) {
+                                showCreateReleaseDialog(owner, repo);
+                            } else {
+                                showReleaseActionDialog(owner, repo, items[which], releaseIds[which]);
+                            }
+                        });
+                        builder.setNegativeButton("取消", null);
+                        builder.show();
+                    });
+                } catch (Exception e) {
+                    final String errorMsg = e.getMessage();
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "解析Release失败: " + errorMsg, Toast.LENGTH_SHORT).show());
+                }
+            }
+        });
+    }
+
+    private void showReleaseActionDialog(final String owner, final String repo,
+                                          final String tagName, final long releaseId) {
+        String[] actions = {"复制下载链接", "删除Release"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(tagName);
+        builder.setItems(actions, (dialog, which) -> {
+            if (which == 0) {
+                String repoUrl = etGithubUrl.getText().toString().trim().replaceAll("/$", "");
+                String downloadUrl = "https://gh-proxy.com/" + repoUrl + "/releases/download/" + tagName + "/";
+                android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                cm.setText(downloadUrl);
+                Toast.makeText(MainActivity.this, "下载链接已复制: " + downloadUrl, Toast.LENGTH_SHORT).show();
+            } else {
+                confirmDeleteRelease(owner, repo, tagName, releaseId);
+            }
+        });
+        builder.setNegativeButton("取消", null);
+        builder.show();
+    }
+
+    private void confirmDeleteRelease(final String owner, final String repo,
+                                       final String tagName, final long releaseId) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("确认删除");
+        builder.setMessage("确定要删除 Release \"" + tagName + "\" 及相关标签吗？");
+        builder.setPositiveButton("确认删除", (dialog, which) -> {
+            Toast.makeText(MainActivity.this, "正在删除...", Toast.LENGTH_SHORT).show();
+            new Thread(() -> {
+                String error = deleteReleaseSync(owner, repo, releaseId, tagName);
+                runOnUiThread(() -> {
+                    if (error == null) {
+                        Toast.makeText(MainActivity.this, "删除成功: " + tagName, Toast.LENGTH_SHORT).show();
+                        fetchReleases();
+                    } else {
+                        Toast.makeText(MainActivity.this, "删除失败: " + error, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }).start();
+        });
+        builder.setNegativeButton("取消", null);
+        builder.show();
+    }
+
+    private String deleteReleaseSync(String owner, String repo, long releaseId, String tagName) {
+        try {
+            String releaseUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/releases/" + releaseId;
+            Request releaseReq = new Request.Builder()
+                    .url(releaseUrl)
+                    .header("Authorization", "token " + token)
+                    .delete()
+                    .build();
+            Response releaseResp = client.newCall(releaseReq).execute();
+            if (!releaseResp.isSuccessful()) {
+                return "删除Release失败: HTTP " + releaseResp.code();
+            }
+
+            String tagUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/git/refs/tags/" + tagName;
+            Request tagReq = new Request.Builder()
+                    .url(tagUrl)
+                    .header("Authorization", "token " + token)
+                    .delete()
+                    .build();
+            Response tagResp = client.newCall(tagReq).execute();
+            if (!tagResp.isSuccessful() && tagResp.code() != 404) {
+                return "删除标签失败: HTTP " + tagResp.code();
+            }
+            return null;
+        } catch (Exception e) {
+            return e.getMessage();
+        }
+    }
+
+    private void showCreateReleaseDialog(final String owner, final String repo) {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 30);
+
+        final EditText etTag = new EditText(this);
+        etTag.setHint("标签名称 (如 v1.0.0)");
+        layout.addView(etTag);
+
+        final EditText etBranch = new EditText(this);
+        etBranch.setHint("目标分支 (默认 main)");
+        etBranch.setText("main");
+        layout.addView(etBranch);
+
+        final EditText etBody = new EditText(this);
+        etBody.setHint("发布说明 (可选)");
+        etBody.setMinLines(5);
+        etBody.setGravity(android.view.Gravity.TOP);
+        layout.addView(etBody);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("发布新Release");
+        builder.setView(layout);
+        builder.setPositiveButton("选择文件并发布", (dialog, which) -> {
+            String tag = etTag.getText().toString().trim();
+            if (tag.isEmpty()) {
+                Toast.makeText(MainActivity.this, "标签名称不能为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            pendingTagName = tag;
+            pendingReleaseBody = etBody.getText().toString();
+            pendingTargetBranch = etBranch.getText().toString().trim();
+            if (pendingTargetBranch.isEmpty()) pendingTargetBranch = "main";
+            pendingAssetUris.clear();
+
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("*/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            startActivityForResult(intent, REQUEST_RELEASE_ASSETS);
+        });
+        builder.setNegativeButton("取消", null);
+        builder.show();
     }
 
     private void makeJsonWithLinkType(final int linkType) {
@@ -1453,6 +1758,127 @@ public class MainActivity extends AppCompatActivity {
             if (folderUri != null) {
                 performFolderUpload(folderUri);
             }
+        } else if (requestCode == REQUEST_RELEASE_ASSETS) {
+            if (pendingTagName == null) return;
+            if (data.getClipData() != null) {
+                int count = data.getClipData().getItemCount();
+                for (int i = 0; i < count; i++) {
+                    Uri fileUri = data.getClipData().getItemAt(i).getUri();
+                    if (fileUri != null) pendingAssetUris.add(fileUri);
+                }
+            } else if (data.getData() != null) {
+                pendingAssetUris.add(data.getData());
+            }
+            if (pendingAssetUris.isEmpty()) {
+                Toast.makeText(this, "未选择文件", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String[] ownerRepo = resolveOwnerRepo();
+            if (ownerRepo == null) return;
+            createReleaseAndUploadAssets(ownerRepo[0], ownerRepo[1]);
         }
+    }
+
+    private void createReleaseAndUploadAssets(final String owner, final String repo) {
+        final String tag = pendingTagName;
+        final String branch = pendingTargetBranch;
+        final String body = pendingReleaseBody;
+        final List<Uri> uris = new ArrayList<>(pendingAssetUris);
+        pendingTagName = null;
+        pendingAssetUris.clear();
+
+        Toast.makeText(this, "正在创建 Release: " + tag + " ...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            try {
+                // 创建 Release
+                JSONObject releaseBody = new JSONObject();
+                releaseBody.put("tag_name", tag);
+                releaseBody.put("target_commitish", branch);
+                releaseBody.put("name", tag);
+                releaseBody.put("body", body.isEmpty() ? ("Release " + tag) : body);
+                releaseBody.put("draft", false);
+                releaseBody.put("prerelease", false);
+
+                String apiUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/releases";
+                Request releaseReq = new Request.Builder()
+                        .url(apiUrl)
+                        .header("Authorization", "token " + token)
+                        .header("Content-Type", "application/json")
+                        .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), releaseBody.toString()))
+                        .build();
+                Response releaseResp = client.newCall(releaseReq).execute();
+                if (!releaseResp.isSuccessful()) {
+                    final String err = "创建Release失败: HTTP " + releaseResp.code();
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, err, Toast.LENGTH_LONG).show());
+                    return;
+                }
+                JSONObject createdRelease = new JSONObject(releaseResp.body().string());
+                final long releaseId = createdRelease.getLong("id");
+                final String htmlUrl = createdRelease.optString("html_url", "");
+
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Release创建成功！正在上传附件...", Toast.LENGTH_SHORT).show());
+
+                // 上传附件
+                final int total = uris.size();
+                final int[] successCount = {0};
+                final int[] failCount = {0};
+
+                for (Uri uri : uris) {
+                    try {
+                        InputStream is = getContentResolver().openInputStream(uri);
+                        if (is == null) {
+                            failCount[0]++;
+                            continue;
+                        }
+                        byte[] bytes = readAllBytes(is);
+                        is.close();
+
+                        String fileName = FileHelper.getFileNameFromUri(getContentResolver(), uri);
+                        if (fileName == null) fileName = "asset_" + System.currentTimeMillis();
+
+                        String uploadUrl = "https://uploads.github.com/repos/" + owner + "/" + repo + "/releases/" + releaseId + "/assets?name=" + java.net.URLEncoder.encode(fileName, "UTF-8");
+                        Request assetReq = new Request.Builder()
+                                .url(uploadUrl)
+                                .header("Authorization", "token " + token)
+                                .header("Content-Type", "application/octet-stream")
+                                .post(RequestBody.create(MediaType.parse("application/octet-stream"), bytes))
+                                .build();
+                        Response assetResp = client.newCall(assetReq).execute();
+                        if (assetResp.isSuccessful()) {
+                            successCount[0]++;
+                        } else {
+                            failCount[0]++;
+                        }
+                        assetResp.close();
+                    } catch (Exception e) {
+                        failCount[0]++;
+                    }
+                }
+
+                final int success = successCount[0];
+                final int fail = failCount[0];
+                final String url = htmlUrl;
+                runOnUiThread(() -> {
+                    String msg = "Release " + tag + " 发布完成！\n上传: 成功" + success + ", 失败" + fail;
+                    if (!url.isEmpty()) msg += "\n" + url;
+                    Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+                    fetchReleases();
+                });
+            } catch (Exception e) {
+                final String error = e.getMessage();
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "发布Release失败: " + error, Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    private byte[] readAllBytes(InputStream is) throws IOException {
+        java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+        byte[] data = new byte[8192];
+        int nRead;
+        while ((nRead = is.read(data)) != -1) {
+            buffer.write(data, 0, nRead);
+        }
+        return buffer.toByteArray();
     }
 }
