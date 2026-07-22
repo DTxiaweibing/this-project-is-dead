@@ -100,6 +100,7 @@ public class MainActivity extends AppCompatActivity {
     private String pendingReleaseBody;
     private String pendingTargetBranch;
     private final List<Uri> pendingAssetUris = new ArrayList<>();
+    private JSONArray releasesData;
     private DataPersistenceHelper dataHelper;
     private TextWatcher jsonTextWatcher;
 
@@ -854,13 +855,15 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
                     final JSONArray releases = new JSONArray(body);
+                    releasesData = releases;
                     final int count = releases.length();
                     final String[] items = new String[count + 1];
-                    final long[] releaseIds = new long[count];
                     for (int i = 0; i < count; i++) {
                         JSONObject r = releases.getJSONObject(i);
-                        items[i] = r.getString("tag_name");
-                        releaseIds[i] = r.getLong("id");
+                        String tag = r.getString("tag_name");
+                        JSONArray assets = r.optJSONArray("assets");
+                        int assetCount = (assets != null) ? assets.length() : 0;
+                        items[i] = tag + "  (" + assetCount + "个附件)";
                     }
                     items[count] = "＋ 发布新Release";
 
@@ -871,7 +874,7 @@ public class MainActivity extends AppCompatActivity {
                             if (which == count) {
                                 showCreateReleaseDialog(owner, repo);
                             } else {
-                                showReleaseActionDialog(owner, repo, items[which], releaseIds[which]);
+                                showReleaseAssetsDialog(owner, repo, which);
                             }
                         });
                         builder.setNegativeButton("取消", null);
@@ -885,24 +888,49 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void showReleaseActionDialog(final String owner, final String repo,
-                                          final String tagName, final long releaseId) {
-        String[] actions = {"复制下载链接", "删除Release"};
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(tagName);
-        builder.setItems(actions, (dialog, which) -> {
-            if (which == 0) {
-                String repoUrl = etGithubUrl.getText().toString().trim().replaceAll("/$", "");
-                String downloadUrl = "https://gh-proxy.com/" + repoUrl + "/releases/download/" + tagName + "/";
-                android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                cm.setText(downloadUrl);
-                Toast.makeText(MainActivity.this, "下载链接已复制: " + downloadUrl, Toast.LENGTH_SHORT).show();
-            } else {
-                confirmDeleteRelease(owner, repo, tagName, releaseId);
+    private void showReleaseAssetsDialog(final String owner, final String repo, final int index) {
+        try {
+            JSONObject release = releasesData.getJSONObject(index);
+            final String tagName = release.getString("tag_name");
+            final long releaseId = release.getLong("id");
+            JSONArray assets = release.optJSONArray("assets");
+            if (assets == null || assets.length() == 0) {
+                String[] noAssetActions = {"删除Release", "取消"};
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setTitle(tagName + " (无附件)");
+                builder.setItems(noAssetActions, (dialog, which) -> {
+                    if (which == 0) confirmDeleteRelease(owner, repo, tagName, releaseId);
+                });
+                builder.show();
+                return;
             }
-        });
-        builder.setNegativeButton("取消", null);
-        builder.show();
+            final int assetCount = assets.length();
+            final String[] assetNames = new String[assetCount + 1];
+            final String[] assetUrls = new String[assetCount];
+            for (int i = 0; i < assetCount; i++) {
+                JSONObject a = assets.getJSONObject(i);
+                assetNames[i] = a.getString("name");
+                assetUrls[i] = a.getString("browser_download_url");
+            }
+            assetNames[assetCount] = "删除此Release";
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle(tagName + " - 选择附件");
+            builder.setItems(assetNames, (dialog, which) -> {
+                if (which == assetCount) {
+                    confirmDeleteRelease(owner, repo, tagName, releaseId);
+                } else {
+                    String realUrl = assetUrls[which];
+                    String proxyUrl = "https://gh-proxy.com/" + realUrl;
+                    android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    cm.setText(proxyUrl);
+                    Toast.makeText(MainActivity.this, "已复制: " + assetNames[which], Toast.LENGTH_SHORT).show();
+                }
+            });
+            builder.setNegativeButton("取消", null);
+            builder.show();
+        } catch (Exception e) {
+            Toast.makeText(this, "读取附件失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void confirmDeleteRelease(final String owner, final String repo,
