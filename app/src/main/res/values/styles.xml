@@ -2,10 +2,16 @@
 
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
+        <item name="alertDialogTheme">@style/CustomAlertDialog</item>
+    </style>
+
+    <style name="CustomAlertDialog" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_bg_rounded</item>
+        <item name="android:listDivider">@drawable/dialog_divider</item>
+        <item name="android:listPreferredItemHeightSmall">48dp</item>
     </style>
 
 </resources>

@@ -341,6 +341,12 @@ public class GitHubUploader {
         });
     }
 
+    public String uploadFileSyncPublic(String token, String owner, String repo,
+                                        String remotePath, byte[] content,
+                                        String commitMessage) {
+        return uploadFileSync(token, owner, repo, remotePath, content, commitMessage);
+    }
+
     public void shutdown() {
         executor.shutdown();
         try {
